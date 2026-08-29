@@ -662,7 +662,7 @@ export default async function Portada({
         />
         <section className="relative mx-auto grid w-full max-w-6xl grid-cols-1 items-center gap-12 px-5 py-16 lg:grid-cols-[1.05fr_1fr] lg:gap-14 lg:py-24">
           <div>
-            <p className="rotulo">Para equipos LEINN</p>
+            <p className="rotulo">hitoo · Para equipos LEINN</p>
             {/* Sin `br`: a este tamaño el salto a mano parte el titular en
                 cuatro lineas en cuanto la columna se estrecha. */}
             <h1 className="mt-3 text-[2.25rem] font-semibold leading-[1.05] tracking-[-0.035em] text-balance sm:text-[2.75rem] xl:text-[3.25rem]">
@@ -973,8 +973,9 @@ export default async function Portada({
 
       <footer className="border-t border-line">
         <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-4 px-5 py-8 text-xs text-muted">
-          <div className="flex items-center gap-3">
-            <Marca />
+          <div className="flex items-center gap-2">
+            <span className="font-semibold tracking-[-0.02em] text-ink">hitoo</span>
+            <span aria-hidden>·</span>
             <span>Hecho por un equipo LEINN, para los equipos LEINN.</span>
           </div>
           <nav className="flex items-center gap-4">
