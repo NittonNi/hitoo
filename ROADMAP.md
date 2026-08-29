@@ -644,6 +644,58 @@ conecte el calendario le sale el aviso de "app no verificada", y Google corta
 en seco a partir de ~100 personas que lo hayan aceptado. El login normal con
 Google (sin calendario) no se ve afectado.
 
+**Enviada el 23-ago-2026, y Google ya ha contestado.** Proyecto
+`hitoo-506113` (numero 917208882470). El correo que llego a
+`hitooclock@gmail.com` el 23-ago -asunto "[Action Needed] OAuth Verification
+Request Acknowledgement", del Third-Party Data Safety Team- no es un rechazo:
+es la ronda normal de "nos falta esto". Pedian cuatro cosas.
+
+Estado a 29-ago-2026:
+
+1. **Politica: con quien se comparten los datos de usuario de Google.**
+   HECHO (commit "el token de Google se guarda cifrado..."). Apartado nuevo
+   "Con quien se comparten" en `/privacidad`, con los cuatro destinatarios
+   reales: el resto del espacio de trabajo, Supabase, Vercel y Google. El que
+   faltaba de verdad y que Google habria acabado encontrando: **al convertir
+   un evento en hora fichada, su titulo pasa a ser la descripcion de la hora y
+   la ve todo el espacio**.
+
+2. **Politica: que mecanismos protegen los datos sensibles.** HECHO, mismo
+   commit. Apartado "Como se protegen": TLS y HSTS, cifrado en reposo, cifrado
+   propio del token, RLS en la base, minimo privilegio con Google, revocacion
+   al desconectar y cabeceras del navegador.
+
+   Al escribirlo aparecio el problema de fondo: **la politica ya afirmaba que
+   el token se guardaba cifrado, y era mentira**. `refresh_token` era `text`
+   en claro y `has_column_privilege('authenticated', ..., 'refresh_token',
+   'SELECT')` daba `true`. Arreglado de verdad con `src/lib/cifrado.ts`
+   (AES-256-GCM, `TOKEN_ENCRYPTION_KEY`), no reescribiendo la frase. Esto
+   cierra tambien el punto que la revision del 21-ago dejo como "bloqueado,
+   sin tocar" -ya no hace falta la `service_role` key para el `REVOKE`: el
+   privilegio sigue ahi, pero devuelve texto cifrado-.
+
+   **Ojo, falta una mano**: `TOKEN_ENCRYPTION_KEY` esta puesta en `.env.local`
+   pero **no en Vercel**. Hasta que este en Production y Preview y se
+   redespliegue, conectar un calendario nuevo en produccion no guarda la
+   conexion -se registra el error y sale como no conectado-. Las tres
+   conexiones que ya existian siguen funcionando y se cifraran solas la
+   primera vez que se abra el calendario con la clave puesta.
+
+3. **Video de demostracion**, con un detalle que no estaba en el guion de
+   abajo: la pantalla de consentimiento tiene que verse **con todos los
+   permisos desplegados y legibles** -si Google los agrupa, hay que pulsar
+   "Mostrar todos los servicios"/"Show all services"-. PENDIENTE, solo lo
+   puede grabar Nicolas.
+
+4. **Credenciales de una cuenta de prueba** para que el equipo de Google entre
+   en la app, sin verificacion por telefono ni nada que les frene, mas
+   instrucciones paso a paso. PENDIENTE: hay que crear la cuenta desde
+   `/acceso` con un correo propio; una vez creada se le puede sembrar un
+   espacio con datos de mentira para que la revision vea la app llena.
+
+Los puntos 1 y 2 se envian **reenviando la ficha desde Cloud Console**; los 3
+y 4, **respondiendo a ese mismo correo**. Hay que hacer las dos cosas.
+
 Guia paso a paso -lo que ya esta hecho, lo que se comprobo en vivo el
 21-ago-2026 y el texto exacto para copiar y pegar en cada paso que solo puede
 hacer Nicolas (necesita sus propias cuentas de Google Cloud/Search Console y
@@ -697,8 +749,10 @@ tres cosas)-:
    Site URL-. No manda correos ni crea sesiones. `/authorize` no vale para
    esto: acepta cualquier `redirect_to` sin quejarse.
 
-3. **Verificar la propiedad de `hitoo.es` en Google Search Console**, con la
-   cuenta `hitooclock@gmail.com`:
+3. ✅ **Hecho** (comprobado el 29-ago-2026: `hitoo.es` responde con el TXT
+   `google-site-verification=JPgZdgAL...` y a `hitooclock@gmail.com` le llegan
+   ya avisos de Search Console del sitio). **Verificar la propiedad de
+   `hitoo.es` en Google Search Console**, con la cuenta `hitooclock@gmail.com`:
    - Entrar en [search.google.com/search-console](https://search.google.com/search-console/welcome)
      -pagina principal de Search Console; si pide iniciar sesion, usar
      `hitooclock@gmail.com`-.
@@ -806,7 +860,8 @@ tres cosas)-:
    - Enlace a terminos de servicio: opcional, se puede dejar en blanco si no
      existen todavia.
 
-7. **Enviar a revision**: en la misma pagina del paso 6
+7. ✅ **Hecho el 23-ago-2026** (y contestado por Google el mismo dia: ver el
+   estado de arriba). **Enviar a revision**: en la misma pagina del paso 6
    -[console.cloud.google.com/apis/credentials/consent](https://console.cloud.google.com/apis/credentials/consent)-,
    boton **Enviar para verificacion** (o "Publicar aplicacion" primero, si
    sigue en modo Prueba, y luego enviar a verificacion). La revision de
@@ -814,12 +869,13 @@ tres cosas)-:
    CASA) suele tardar dias, no semanas. Google puede escribir por correo
    pidiendo aclaraciones -revisar `hitooclock@gmail.com`-.
 
-Resumen de quien hace que: los pasos 1 y 2 (dominio + variables de Vercel)
-ya estan hechos, y el cambio de Site URL/Redirect URLs en Supabase tambien
-(22-ago-2026, detalle en el paso 2). Los pasos 4-6 (textos e imagenes de la ficha)
-estan preparados para que sea copiar/pegar/subir. Los pasos 3 y 7 son
-tramites que solo Nicolas puede iniciar porque exigen su sesion en Google
--no hay atajo-.
+Resumen de quien hace que, a 29-ago-2026: los pasos 1 a 7 estan todos hechos
+-la ficha se envio el 23-ago-. Lo unico que queda es la ronda de respuesta:
+pegar `TOKEN_ENCRYPTION_KEY` en Vercel, crear la cuenta de prueba, grabar el
+video con los permisos desplegados, reenviar la ficha desde Cloud Console y
+contestar al correo. El texto de la respuesta esta en `VERIFICACION-GOOGLE.md`.
+Las cuatro cosas exigen la sesion de Nicolas en Google, Vercel o el telefono:
+no hay atajo desde aqui.
 
 ### Faltan estados de carga: la pantalla se queda parada y de golpe aparece todo
 
