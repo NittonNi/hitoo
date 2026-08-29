@@ -5,6 +5,31 @@ Lo que falta, en el orden en que tiene sentido hacerlo. Se va moviendo a
 
 ## Por arreglar
 
+### Conectar el calendario te cambia de usuario si entraste con correo (29-ago-2026)
+
+Visto al escribir las instrucciones para la revision de Google.
+`conectar()` en `ajustes-calendario-google.tsx` llama a
+`supabase.auth.signInWithOAuth({ provider: "google", scopes: calendar.readonly })`:
+no es "anadir un permiso a la sesion que ya tengo", es **entrar otra vez**,
+ahora con Google. La vuelta pasa por `/auth/callback`, que hace
+`exchangeCodeForSession` y guarda la conexion contra `data.user.id`, es decir,
+contra el usuario que salga de esa entrada.
+
+Para quien entro con Google desde el principio no se nota: es el mismo
+usuario. Pero quien se dio de alta con **correo y contrasena** y pulsa
+"Conectar Google Calendar" acaba dentro como el usuario de Google que elija
+-otra cuenta, sin espacio, con el onboarding delante-, y su cuenta original
+se queda sin conexion. En silencio, ademas: no falla nada, simplemente eres
+otro.
+
+No ha molestado nunca porque en la practica todo el mundo entra con Google.
+El arreglo es `supabase.auth.linkIdentity()` en vez de `signInWithOAuth()`
+cuando ya hay sesion -vincula la identidad de Google al usuario actual sin
+cambiarlo-, y hay que habilitar el enlazado manual de identidades en el panel
+de Supabase (Authentication > Providers). No se toca ahora para no mover el
+flujo justo en mitad de la revision de Google.
+
+
 ### Escribir en el movil es incomodo (apuntado el 22-ago-2026)
 
 Contado por Nicolas despues de probarlo en su telefono. **Sin diagnosticar
@@ -689,9 +714,17 @@ Estado a 29-ago-2026:
 
 4. **Credenciales de una cuenta de prueba** para que el equipo de Google entre
    en la app, sin verificacion por telefono ni nada que les frene, mas
-   instrucciones paso a paso. PENDIENTE: hay que crear la cuenta desde
-   `/acceso` con un correo propio; una vez creada se le puede sembrar un
-   espacio con datos de mentira para que la revision vea la app llena.
+   instrucciones paso a paso. HECHO el 29-ago-2026: cuenta
+   `hitooclock+google@gmail.com` con el correo ya confirmado -comprobado que
+   entra-, espacio "Equipo de demostracion" con 4 ramas, 5 proyectos y 36
+   horas de las tres ultimas semanas, y enlace de invitacion con tres plazas
+   libres, `https://www.hitoo.es/unirse/4thp5yhrn2`. La contrasena no se
+   escribe en el repo -es publico-: va directa en el correo a Google.
+
+   Al preparar las instrucciones aparecio el detalle de `signInWithOAuth`
+   -ver "Por arreglar"-, asi que el camino que se les indica es entrar con
+   Google desde el primer paso y unirse con el enlace, no con la cuenta de
+   correo. Todo el guion esta en `VERIFICACION-GOOGLE.md`.
 
 Los puntos 1 y 2 se envian **reenviando la ficha desde Cloud Console**; los 3
 y 4, **respondiendo a ese mismo correo**. Hay que hacer las dos cosas.
