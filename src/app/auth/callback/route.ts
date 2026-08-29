@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server"
 
 import { createClient } from "@/lib/supabase/server"
+import { cifrar } from "@/lib/cifrado"
 import { rutaSegura } from "@/lib/rutas"
 
 /**
@@ -31,9 +32,17 @@ export async function GET(request: NextRequest) {
          guarda aqui, en el servidor: nunca llega al navegador. */
       const refreshToken = data.session?.provider_refresh_token
       if (refreshToken && data.user) {
-        await supabase
-          .from("google_connections")
-          .upsert({ user_id: data.user.id, refresh_token: refreshToken })
+        try {
+          await supabase
+            .from("google_connections")
+            .upsert({ user_id: data.user.id, refresh_token: cifrar(refreshToken) })
+        } catch (e) {
+          /* Sin clave de cifrado no se guarda nada: preferimos que el
+             calendario salga como no conectado -y se pueda reintentar- antes
+             que dejar el token en claro en la base. El acceso en si ya esta
+             hecho, asi que la vuelta sigue igual. */
+          console.error("No se ha podido guardar la conexion con Google:", e)
+        }
       }
 
       // Detras de un proxy (Vercel) el host real viene en la cabecera

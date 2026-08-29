@@ -17,7 +17,7 @@ export default function PaginaPrivacidad() {
       <h1 className="mt-6 text-3xl font-semibold tracking-tight text-ink">
         Política de privacidad
       </h1>
-      <p className="mt-2 text-sm text-muted">Última actualización: 21 de agosto de 2026.</p>
+      <p className="mt-2 text-sm text-muted">Última actualización: 29 de agosto de 2026.</p>
 
       <div className="mt-10 space-y-10 text-sm leading-relaxed text-ink">
         <section>
@@ -84,9 +84,18 @@ export default function PaginaPrivacidad() {
           </p>
           <ul className="mt-3 list-disc space-y-2 pl-5">
             <li>
-              El token de acceso se guarda cifrado en la base de datos y solo
-              lo lee el servidor de hitoo — nunca se envía al navegador ni a
-              ningún otro servicio.
+              El token que Google entrega se guarda cifrado con AES-256-GCM
+              antes de escribirlo en la base de datos. La clave de cifrado vive
+              solo en el entorno del servidor, nunca en la base ni en el
+              navegador: quien llegase a leer la fila se llevaría un texto
+              inservible. Solo el servidor de hitoo lo descifra, y únicamente
+              para pedirle a Google los eventos de quien lo conectó.
+            </li>
+            <li>
+              Los eventos del calendario se piden en el momento de mirar la
+              pantalla y no se guardan en la base de datos. Lo único que se
+              queda es lo que la persona convierte en hora fichada a
+              propósito, y solo eso (ver más abajo, «Con quién se comparten»).
             </li>
             <li>
               Se puede desconectar el calendario en cualquier momento desde
@@ -94,7 +103,6 @@ export default function PaginaPrivacidad() {
               directamente con Google (no solo lo olvida por su cuenta) y
               borra el token guardado.
             </li>
-            <li>Los datos del calendario nunca se comparten con terceros.</li>
           </ul>
           <p className="mt-3">
             El uso y la transferencia a cualquier otra aplicación de la
@@ -121,6 +129,108 @@ export default function PaginaPrivacidad() {
           </p>
         </section>
 
+        <section id="con-quien-se-comparten">
+          <h2 className="text-lg font-semibold text-ink">Con quién se comparten</h2>
+          <p className="mt-3">
+            hitoo no vende, alquila ni cede datos personales a nadie, y no los
+            usa para publicidad ni para entrenar modelos de inteligencia
+            artificial. Los datos solo llegan a estos destinatarios, y a
+            ninguno más:
+          </p>
+          <ul className="mt-3 list-disc space-y-2 pl-5">
+            <li>
+              <strong>Las demás personas del mismo espacio de trabajo.</strong>{" "}
+              hitoo es una herramienta de equipo: las horas apuntadas —fecha,
+              duración, proyecto y descripción— las ven los compañeros del
+              mismo espacio, y quien lo administra ve además los importes.
+              Esto afecta también a los datos que vienen de Google Calendar:
+              si alguien convierte un evento en una hora fichada, el título de
+              ese evento pasa a ser la descripción de esa hora y queda visible
+              para su equipo. Los eventos que no se convierten no los ve nadie
+              más que la persona que conectó su calendario.
+            </li>
+            <li>
+              <strong>Supabase</strong> (Supabase Inc.), como encargado del
+              tratamiento: aloja la base de datos y el sistema de acceso, en
+              servidores de la Unión Europea. Trata los datos únicamente para
+              prestar ese servicio a hitoo.
+            </li>
+            <li>
+              <strong>Vercel</strong> (Vercel Inc.), como encargado del
+              tratamiento: aloja y sirve la aplicación. Procesa las peticiones
+              necesarias para que la web funcione; no guarda una copia propia
+              de las horas ni de los datos del calendario.
+            </li>
+            <li>
+              <strong>Google</strong>, únicamente en sentido contrario: hitoo
+              le pide a Google los eventos de quien ha conectado su
+              calendario. No se le envían a Google datos de hitoo más allá de
+              lo imprescindible para hacer esa consulta con el permiso
+              concedido.
+            </li>
+          </ul>
+          <p className="mt-3">
+            Los datos obtenidos de las APIs de Google no se transfieren a
+            ningún otro tercero salvo que sea imprescindible para prestar el
+            servicio a quien los cedió, por obligación legal o por una orden
+            de una autoridad competente. En particular, no se comparten con
+            anunciantes, ni con proveedores de analítica, ni con intermediarios
+            de datos, ni se usan para crear perfiles.
+          </p>
+        </section>
+
+        <section id="como-se-protegen">
+          <h2 className="text-lg font-semibold text-ink">Cómo se protegen</h2>
+          <p className="mt-3">
+            Los datos que hitoo considera sensibles —los tokens de acceso a
+            Google, el contenido de las horas y los importes— están protegidos
+            con estas medidas:
+          </p>
+          <ul className="mt-3 list-disc space-y-2 pl-5">
+            <li>
+              <strong>En tránsito:</strong> todo el tráfico va por HTTPS con
+              TLS, forzado con HSTS. La aplicación no se sirve nunca por una
+              conexión sin cifrar.
+            </li>
+            <li>
+              <strong>En reposo:</strong> la base de datos está cifrada en
+              disco por el proveedor, y el token de Google Calendar se guarda
+              además cifrado por la propia aplicación con AES-256-GCM, con una
+              clave que solo existe en las variables de entorno del servidor.
+              Es un cifrado autenticado: si el valor guardado se altera, el
+              descifrado falla en vez de devolver un dato manipulado.
+            </li>
+            <li>
+              <strong>Control de acceso:</strong> cada tabla tiene reglas de
+              seguridad a nivel de fila que se aplican en la propia base de
+              datos, no solo en la aplicación. Nadie puede leer las horas de un
+              espacio al que no pertenece, ni el token de otra persona, aunque
+              intente saltarse la interfaz.
+            </li>
+            <li>
+              <strong>Mínimo privilegio con Google:</strong> se pide el permiso
+              de solo lectura del calendario y ningún otro. hitoo no puede
+              crear, editar ni borrar eventos aunque quisiera.
+            </li>
+            <li>
+              <strong>Al desconectar:</strong> el permiso se revoca contra los
+              servidores de Google en el momento y el token se borra de la base
+              de datos.
+            </li>
+            <li>
+              <strong>En el navegador:</strong> cabeceras de seguridad
+              (política de contenido, bloqueo de incrustación en marcos,
+              <code className="mx-1 rounded bg-surface-2 px-1 py-0.5 text-xs">nosniff</code>
+              ) y cookies de sesión gestionadas por Supabase Auth.
+            </li>
+            <li>
+              <strong>Quién puede acceder por detrás:</strong> el acceso
+              administrativo a la base de datos lo tiene únicamente la persona
+              que ofrece hitoo, y solo se usa para mantener el servicio.
+            </li>
+          </ul>
+        </section>
+
         <section>
           <h2 className="text-lg font-semibold text-ink">
             Cuánto tiempo se conservan y cómo pedir que se borren
@@ -134,6 +244,13 @@ export default function PaginaPrivacidad() {
               hitooclock@gmail.com
             </a>
             .
+          </p>
+          <p className="mt-3">
+            Los datos que vienen de Google tienen su propio plazo, más corto:
+            los eventos del calendario no se conservan —se piden a Google cada
+            vez que hace falta pintarlos— y el token de acceso se borra en el
+            momento en que se desconecta el calendario, se borra la cuenta o
+            se revoca el permiso desde la cuenta de Google.
           </p>
         </section>
 

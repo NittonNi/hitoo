@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server"
 import { listarEventos, type EventoGoogle } from "@/lib/google"
+import { cifrar, descifrar, estaCifrado } from "@/lib/cifrado"
 import { mensajeError } from "@/lib/errores"
 
 type ResultadoEventos =
@@ -36,8 +37,27 @@ export async function eventosDeGoogle(
   if (!conexion) return { conectado: false }
 
   try {
+    const refreshToken = descifrar(conexion.refresh_token)
+
+    /* Conexiones guardadas antes de que hubiera cifrado: se aprovecha la
+       primera lectura para dejarlas cifradas, en vez de pedirle a nadie que
+       vuelva a conectar el calendario. */
+    if (!estaCifrado(conexion.refresh_token)) {
+      try {
+        await supabase
+          .from("google_connections")
+          .update({ refresh_token: cifrar(refreshToken) })
+          .eq("user_id", userId)
+      } catch (e) {
+        // Es una mejora oportunista: si falla -por ejemplo, porque falta la
+        // clave en el entorno-, la fila se queda como estaba y el calendario
+        // sigue funcionando. Nunca debe tumbar la pantalla.
+        console.error("No se ha podido cifrar la conexion guardada de Google:", e)
+      }
+    }
+
     const eventos = await listarEventos(
-      conexion.refresh_token,
+      refreshToken,
       conexion.calendar_id,
       new Date(desde),
       new Date(hasta),
@@ -95,7 +115,7 @@ export async function desconectarGoogle(): Promise<{ error: string | null }> {
       const respuesta = await fetch("https://oauth2.googleapis.com/revoke", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({ token: conexion.refresh_token }),
+        body: new URLSearchParams({ token: descifrar(conexion.refresh_token) }),
       })
       if (!respuesta.ok) {
         // Token ya invalido, o Google no responde: no bloquea el borrado
