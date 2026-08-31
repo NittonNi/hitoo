@@ -11,28 +11,34 @@ verificación, con los pasos previos, sigue en `ROADMAP.md`.
 > clave de cifrado no se escriben aquí: van directamente en el correo a Google
 > y en el panel de Vercel.
 
-## Lo que falta, en orden
+## Estado: respondido, esperando a Google (31-ago-2026)
 
-1. **Pegar `TOKEN_ENCRYPTION_KEY` en Vercel.** El valor está en `.env.local`
-   (`tail -1 ~/nitton-horas/.env.local`). Va en
-   [vercel.com/nittonnis-projects/hitoo/settings/environment-variables](https://vercel.com/nittonnis-projects/hitoo/settings/environment-variables),
-   marcando **Production** y **Preview**, y luego hay que **volver a
-   desplegar**: Vercel no aplica variables nuevas a un despliegue ya hecho.
+Todo lo que pedia el correo del 23-ago esta entregado. **No queda nada por
+hacer salvo esperar la respuesta de Google** en `hitooclock@gmail.com`.
 
-   **Esto va primero, antes de grabar nada.** Sin la clave, conectar un
-   calendario en producción no guarda la conexión: se registra el error y la
-   app dice que no estás conectado. Es decir, el vídeo saldría mal y la
-   revisión se toparía con lo mismo.
+- **Ficha reenviada** desde Cloud Console. No habia boton de "volver a
+  enviar": lo que dispara el reenvio es **guardar el enlace del video de
+  demostracion** en la ficha de verificacion.
+- **Correo respondido** en el hilo "[Action Needed] OAuth Verification Request
+  Acknowledgement", con el video, las credenciales de prueba, las
+  instrucciones paso a paso y los dos enlaces con ancla de la politica.
+- **Video**: <https://youtu.be/oNFlBoiuuq0> (no listado, 2:24).
 
-2. **Grabar el vídeo** (guion completo más abajo).
+Si vuelven a devolverlo, el guion de abajo sigue sirviendo: los planos, el
+detalle del plano 7 y el texto del correo estan tal cual se enviaron.
 
-3. **Reenviar la ficha desde Cloud Console** —
-   [console.cloud.google.com/apis/credentials/consent](https://console.cloud.google.com/apis/credentials/consent),
-   proyecto `hitoo`. Los dos puntos de la política de privacidad se envían por
-   ahí; no basta con responder al correo.
+### Hecho el 31-ago-2026
 
-4. **Responder al correo** con el texto de más abajo, rellenando el enlace del
-   vídeo y la contraseña.
+- **`TOKEN_ENCRYPTION_KEY` en Vercel y redesplegado**
+  (`dpl_2KUb5zqCoqXz9TpWw81spCphX1ye`, redeploy de `6ca4e83`). Comprobado en
+  producción: conectar el calendario dice "Conectado" y salen las reuniones.
+- **La etapa «Lineamientos de desarrollo de la marca» ya sale bien.** Era el
+  riesgo caro. No hace falta dominio propio de Supabase.
+- **Vídeo grabado** con `hitooclock@gmail.com`, en incógnito. Cubre todos los
+  planos menos el 3: esa cuenta ya era miembro del espacio de tomas
+  anteriores, así que entró directa al panel sin pasar por `/unirse`. No
+  importa para lo que Google evalúa, pero **gastó la plaza "Google reviewer
+  1"**: el correo promete ya solo dos, la "2" y la "3".
 
 ## Lo que ya está hecho (23→29-ago-2026)
 
@@ -151,15 +157,27 @@ en inglés, rellenando lo que está entre `<>`:
 Hello,
 
 Thank you for the review. Here is the information you requested for project
-hitoo-506113 (project number 917208882470).
+hitoo-506113 (project number 917208882470), in the same order as your email:
+the demo video with the consent screen fully expanded (1), active test
+credentials with no authentication blockers (2), step-by-step navigation
+instructions (3), and the updated privacy policy links (4).
 
 1) Demo video
 
-<ENLACE DE YOUTUBE, NO LISTADO>
+https://youtu.be/oNFlBoiuuq0
 
 The video shows the complete OAuth flow. The consent screen is displayed with
 the requested scope (.../auth/calendar.readonly) fully expanded and readable,
 followed by the actual use we make of it inside the app.
+
+One thing you will notice in that screen: it shows the domain
+zyjtymxkkfpecpfqqvpn.supabase.co rather than hitoo.es. hitoo delegates
+authentication to Supabase Auth, our database and authentication processor, so
+the OAuth redirect URI is hosted on our own Supabase project domain and Google
+displays that host on the consent screen. It is the same application: the
+client ID belongs to project hitoo-506113, the app is presented to users as
+hitoo at https://www.hitoo.es (shown at the start of the video), and no third
+party other than Supabase, acting as our processor, is involved.
 
 2) Test access
 
@@ -170,7 +188,7 @@ you to join:
 
 Sign-in page:    https://www.hitoo.es/acceso
 Invitation link: https://www.hitoo.es/unirse/4thp5yhrn2
-                 (three free seats: "Google reviewer 1", "2" and "3")
+                 (two free seats: "Google reviewer 2" and "Google reviewer 3")
 
 If you also want an account of ours, this one is a member of the same demo
 workspace and can be used with the email and password fields:
@@ -192,7 +210,7 @@ The interface is in Spanish; the English translation is in brackets.
    sign-in: it does NOT request the calendar scope. That is intentional —
    users who never use the calendar are never asked for that permission.
 2. Open https://www.hitoo.es/unirse/4thp5yhrn2 , pick one of the free seats
-   ("Google reviewer 1", "2" or "3") and confirm. You are now a member of the
+   ("Google reviewer 2" or "Google reviewer 3") and confirm. You are now a member of the
    demo workspace "Equipo de demostración" [Demo team], which already contains
    projects and logged hours.
 3. In the left sidebar, click "Calendario" [Calendar].
@@ -220,7 +238,13 @@ The interface is in Spanish; the English translation is in brackets.
 4) Privacy policy
 
 https://www.hitoo.es/privacidad has been updated to address both points, and
-the app has been resubmitted in the Cloud Console.
+the app has been resubmitted in the Cloud Console. Direct links to the two
+sections you asked for:
+
+- Data sharing disclosures:
+  https://www.hitoo.es/privacidad#con-quien-se-comparten
+- Data protection disclosures:
+  https://www.hitoo.es/privacidad#como-se-protegen
 
 - "Con quién se comparten" [Who we share data with] now names every recipient
   of Google user data: the other members of the user's own workspace (when the
