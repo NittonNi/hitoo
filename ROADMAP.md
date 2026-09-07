@@ -1623,7 +1623,7 @@ para poder buscar por ellas. Falta decidir:
 
 ### Antes de venderla (1-sep-2026)
 
-Cuatro cosas que Nicolas quiere revisar antes de salir a vender, apuntadas
+Cinco cosas que Nicolas quiere revisar antes de salir a vender, apuntadas
 mientras se montaba la pasarela de pago. No estan decididas, estan abiertas.
 
 - **Que le damos a un leinner que no le de un cronometro cualquiera.** Hoy la
@@ -1643,6 +1643,24 @@ mientras se montaba la pasarela de pago. No estan decididas, estan abiertas.
   y si se hace mal ensucia la base para siempre. Duda abierta: si se cobra
   aparte como servicio -no esta claro que lo quieran ni que lo paguen- o si
   entra en la cuota.
+- **La identidad y todo lo de Google, que estan pochas** (7-sep-2026). No es
+  solo cambiar el logo; hay que mirarlo entero y de una vez:
+  - **Metadatos.** `layout.tsx` tiene solo `title` y `description`. **No hay
+    `metadataBase` ni bloque `openGraph`/`twitter`**, asi que lo que se ve al
+    pegar un enlace de hitoo en WhatsApp, Slack o LinkedIn no lo ha decidido
+    nadie -existe `opengraph-image.tsx`, pero sin `metadataBase` las URLs se
+    resuelven a lo que pille-. Es lo primero que ve un cliente al que le
+    pasan el enlace.
+  - **No hay `sitemap.ts`**, y `robots.ts` no apunta a ninguno.
+  - **Los iconos**: `icon.svg` son 355 bytes, mas `favicon.ico` y
+    `apple-icon.png`. Revisarlos juntos: son la pestaña, el movil y el
+    resultado de Google.
+  - **La pantalla de consentimiento de Google (hitoo-506113): CUIDADO.** Se
+    ve pocha, si, pero **tocarla obliga a pasar otra vez la verificacion**,
+    que se aprobo el 2-sep-2026 tras varias rondas. Asi que no se toca por
+    capricho ni de una en una: se decide TODO -nombre, logo, correo de
+    soporte, enlaces- y se manda en un solo envio. Ver
+    `VERIFICACION-GOOGLE.md`.
 
 ## Salir a vender: lo que falta para el push (repasado el 7-sep-2026)
 
