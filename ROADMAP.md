@@ -1653,11 +1653,16 @@ son paneles de Stripe y de Vercel.
 2. ~~Verificacion de Google~~ **aprobada el 2-sep** (hitoo-506113).
 3. **Modo real en Stripe**, que es una cuenta distinta del sandbox y no se ve
    desde estas sesiones. Hay que recrear alli, a mano:
-   - **Producto** «hitoo — Equipo», descripcion "Control de horas para un
-     equipo de hasta 20 personas. Cuota mensual por espacio de trabajo.",
-     metadata `app=hitoo` (en el sandbox es `prod_VBDYmK4zl1h6aK`).
-   - **Precio** recurrente, 19,00 EUR, mensual, `tax_behavior: exclusive`
-     -es decir, SIN IVA incluido- (sandbox: `price_1UAr7n3wYiZE7FbO3FoYNsd8`).
+   - ~~**Producto**~~ **hecho el 7-sep**, y verificado leyendo la cuenta real:
+     «hitoo — Equipo», con su descripcion y `metadata app=hitoo`.
+     **OJO: se copio del sandbox con "Copy to live mode", que CONSERVA EL ID.**
+     O sea que el producto de pruebas y el real se llaman los dos
+     `prod_VBDYmK4zl1h6aK` y el identificador **ya no distingue uno de otro**:
+     lo unico que los separa es el `livemode`. No fiarse del ID nunca mas.
+   - ~~**Precio**~~ **hecho el 7-sep** y verificado: 1900 EUR/mes,
+     `tax_behavior: exclusive`, activo. Los precios si cogieron ID nuevo:
+     **real `price_1UD2SF33CM0L7G6YpHQS2jyl`**, sandbox
+     `price_1UAr7n3wYiZE7FbO3FoYNsd8`.
    - **Tipo de IVA** del 21%, en Productos > Tipos de impuesto (sandbox:
      `txr_1UAs0M3wYiZE7FbOFGZvSODM`).
    - **Endpoint de webhook** `https://www.hitoo.es/api/stripe/webhook`,
@@ -1667,16 +1672,42 @@ son paneles de Stripe y de Vercel.
      Checkout falla entero, porque desde el 7-sep pide aceptarlas
      (`consent_collection`). Aprovechar y poner tambien nombre publico y
      politica de reembolso.
-4. **Variables en Vercel** (Production y Preview), y redesplegar:
-   `STRIPE_SECRET_KEY`, `STRIPE_PRICE_ID`, `STRIPE_TAX_RATE_ID`,
-   `STRIPE_WEBHOOK_SECRET`, `SUPABASE_SERVICE_ROLE_KEY` y
-   `NEXT_PUBLIC_SITE_URL`. Todas estan documentadas en `.env.example` desde
-   el 7-sep, con el aviso de que sandbox y real son cuentas distintas.
+4. **Variables en Vercel**, y redesplegar. Son **cinco y solo en
+   Production**: `STRIPE_SECRET_KEY`, `STRIPE_PRICE_ID`,
+   `STRIPE_TAX_RATE_ID`, `STRIPE_WEBHOOK_SECRET` y
+   `SUPABASE_SERVICE_ROLE_KEY`. Documentadas en `.env.example` desde el
+   7-sep, con el aviso de que sandbox y real son cuentas distintas.
+   - **Preview NO**, aunque Vercel proponga "Production and Preview" por
+     defecto -que es como estan todas las demas-: con `sk_live_` ahi, probar
+     una rama cobra dinero de verdad. Si se quiere preview vivo, van las del
+     sandbox y sin `STRIPE_WEBHOOK_SECRET`, porque un destino de Stripe
+     apunta a una URL fija y las de preview cambian en cada despliegue.
+   - **`NEXT_PUBLIC_SITE_URL` no se pone**: se usa en un unico sitio
+     (`volverA()`, en las acciones de la suscripcion) y su valor por defecto
+     ya es `https://www.hitoo.es`. Ponerla solo añade una forma de
+     equivocarse. En `.env.local` si vale, con `http://localhost:3000`.
 
 ### Conviene antes de cobrar de verdad
 
-- **Revocar la clave secreta de Supabase** que se pego en el chat el 1-sep y
-  poner otra.
+- ~~El codigo de invitacion publicado~~ **resuelto el 7-sep-2026.** El enlace
+  de la ronda de Google estaba escrito entero en `VERIFICACION-GOOGLE.md`
+  (cuatro veces) y en este mismo fichero, en un repo publico, y seguia **vivo
+  con dos plazas libres**. Se comprobo contra la base ese dia. Como la
+  verificacion ya estaba aprobada y el espacio no servia para nada mas, se
+  **borro entero** -copia en `~/copia-equipo-demostracion-2026-09-07.json`,
+  fuera del repo-: 2 miembros (los dos cuentas de Nicolas), 4 plazas, 6 ramas,
+  5 proyectos y 38 horas. Los 15 FK son CASCADE y quedaron cero huerfanos.
+  Quien abra el enlace ahora ve "Este enlace ya no vale".
+- ~~Revocar la clave secreta de Supabase~~ **hecho el 7-sep-2026.** La que se
+  pego en el chat el 1-sep era ademas la que estaba en uso. Se roto en el
+  orden que no corta nada -crear la nueva, ponerla en `.env.local`, y solo
+  entonces revocar la vieja-, aprovechando que esa variable todavia no esta
+  en Vercel, asi que produccion ni se entero. Son las claves nuevas de
+  Supabase (`sb_secret_`), que admiten varias a la vez.
+  Comprobado contra la base, no supuesto: la nueva lee las 8 filas saltandose
+  la RLS y escribe; la vieja devuelve **"Unregistered API key"**. Nunca llego
+  a commitearse (`git log --all -S` no la encuentra): la fuga fue solo el
+  chat.
 - **Probar con el raton** la pagina de pago de Stripe (recogida de direccion
   y NIF, la casilla de las condiciones, vuelta a la app) y el portal de
   cliente. Lo unico que sigue sin probarse a mano.
