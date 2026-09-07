@@ -26,18 +26,24 @@ export default async function PaginaEquipo() {
       .order("name"),
   ])
 
+  const listaPlazas = (plazas.data ?? []).map((p) => ({
+    id: p.id,
+    name: p.name,
+    claimed_by: p.claimed_by,
+    quien: p.profiles?.full_name ?? null,
+  }))
+
+  // Cuanta gente va a haber en el espacio: quien ya esta dentro, mas los
+  // nombres apuntados que todavia no ha cogido nadie. Un hueco ya cogido
+  // cuenta como su persona, no dos veces.
+  const personas =
+    miembros.filter((m) => m.active).length +
+    listaPlazas.filter((p) => !p.claimed_by).length
+
   return (
     <div className="space-y-5">
       {veTodo(rol) && (
-        <GestionPlazas
-          espacio={espacio}
-          plazas={(plazas.data ?? []).map((p) => ({
-            id: p.id,
-            name: p.name,
-            claimed_by: p.claimed_by,
-            quien: p.profiles?.full_name ?? null,
-          }))}
-        />
+        <GestionPlazas espacio={espacio} plazas={listaPlazas} personas={personas} />
       )}
 
       <GestionEquipo

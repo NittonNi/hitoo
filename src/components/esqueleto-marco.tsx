@@ -1,4 +1,4 @@
-import { BloquePulso } from "@/components/esqueleto-pagina"
+import { BloquePulso, EsqueletoPagina } from "@/components/esqueleto-pagina"
 
 /**
  * Lo que se ve nada más navegar a (app) mientras se resuelve la sesión
@@ -9,8 +9,13 @@ import { BloquePulso } from "@/components/esqueleto-pagina"
  * loading.md líneas 88-93 y layout.md líneas 316-345 de esta instalación.
  *
  * Calca solo las medidas de Armazon (ancho de barra lateral, alto de cabecera
- * móvil) para que no salte el layout cuando entra el de verdad; el contenido
- * de cada página ya tiene su propio esqueleto en su loading.tsx.
+ * móvil) para que no salte el layout cuando entra el de verdad.
+ *
+ * El <main> lleva el esqueleto generico a proposito: el loading.tsx de cada
+ * pagina vive POR DENTRO de este Suspense, asi que hasta que no se resuelve
+ * la sesion no llega a pintarse. Sin nada aqui, lo que se ve mientras tanto
+ * es el menu en gris y el contenido en blanco -que es justo la queja del
+ * 20-ago-2026-. Luego lo releva el esqueleto propio de la pagina.
  */
 export function EsqueletoMarco() {
   return (
@@ -31,7 +36,9 @@ export function EsqueletoMarco() {
           <BloquePulso className="h-8 w-32 rounded-[var(--radio-sm)]" />
           <BloquePulso className="ml-auto h-8 w-20 rounded-[var(--radio-sm)]" />
         </header>
-        <main className="mx-auto w-full min-w-0 max-w-[90rem] flex-1 px-4 py-5 pb-24 lg:px-8 lg:py-7 lg:pb-7" />
+        <main className="mx-auto w-full min-w-0 max-w-[90rem] flex-1 px-4 py-5 pb-24 lg:px-8 lg:py-7 lg:pb-7">
+          <EsqueletoPagina />
+        </main>
       </div>
     </div>
   )

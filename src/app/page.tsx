@@ -21,6 +21,7 @@ import { BotonGoogle } from "@/components/boton-google"
 import { EntrarDirecto } from "@/components/entrar-directo"
 import { COOKIE_DIRECTO } from "@/lib/cookies"
 import { CronometroDemo } from "@/components/cronometro-demo"
+import { PRECIO } from "@/lib/empresa"
 
 /**
  * La portada va siempre en claro -ver `.tema-claro` en globals.css-, así que
@@ -178,7 +179,34 @@ const PARA_LEINN = [
   },
 ]
 
+const PRECIO_INCLUYE = [
+  {
+    titulo: "Todo lo que ves, dentro",
+    texto:
+      "No hay funciones guardadas para un plan de más arriba. El cronómetro, el calendario, los informes, el €/h, el Excel y la importación de Clockify entran en el precio.",
+  },
+  {
+    titulo: "Un mes de prueba si eres de LEINN",
+    texto:
+      "Con el código que reparte tu equipo son 30 días en vez de 14, y sin poner tarjeta. Un mes da para un cierre entero y para ver si de verdad os sirve.",
+  },
+  {
+    titulo: "Se cancela desde dentro",
+    texto:
+      "Sin llamadas ni correos: un botón en Gestión. Y el mes empezado se termina, no se corta a mitad.",
+  },
+  {
+    titulo: "Cancelar no borra nada",
+    texto:
+      "Si dejáis de pagar, las horas siguen ahí: se ven, se filtran y se bajan en Excel. Lo único que no se puede es apuntar nuevas.",
+  },
+]
+
 const PREGUNTAS = [
+  {
+    q: "¿Qué pasa cuando se acaba la prueba?",
+    a: "Nada se borra. El espacio se queda en solo lectura: seguís viendo, filtrando y bajando en Excel todo lo apuntado, pero no se pueden apuntar horas nuevas hasta que alguien suscriba el espacio. En cuanto se paga, sigue donde estaba.",
+  },
   {
     q: "¿Y todo lo que tenemos ya en Clockify?",
     a: "Se sube el CSV detallado y entra tal cual: proyecto, tarea, etiquetas, si se cobraba y quién lo apuntó. Se reconoce lo que ya está, así que puedes subirlo varias veces sin miedo a duplicar.",
@@ -620,6 +648,9 @@ export default async function Portada({
             <a href="#empezar" className="transition hover:text-ink">
               Cómo se empieza
             </a>
+            <a href="#precio" className="transition hover:text-ink">
+              El precio
+            </a>
             <a href="#preguntas" className="transition hover:text-ink">
               Preguntas
             </a>
@@ -909,6 +940,46 @@ export default async function Portada({
           </AlEntrar>
         </section>
 
+        {/* ---------------------------------------------------------- precio */}
+        <section id="precio" className="scroll-mt-16 border-t border-line py-14 lg:py-20">
+          <AlEntrar>
+            <Seccion rotulo="El precio" titulo="Uno, y por equipo" />
+
+            <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-[22rem_minmax(0,1fr)] lg:gap-16">
+              <div className="rounded-[var(--radio)] border border-line p-6">
+                <p className="text-sm text-ink-soft">Un espacio de trabajo</p>
+                <p className="mt-1 flex items-baseline gap-1.5">
+                  <span className="cifra text-4xl font-semibold tracking-tight">{PRECIO.euros} €</span>
+                  <span className="text-sm text-ink-soft">al mes, más IVA</span>
+                </p>
+                <p className="mt-3 text-sm leading-relaxed text-ink-soft">
+                  Hasta {PRECIO.personas} personas. Entren cinco o veinte, es el mismo precio:
+                  nadie tiene que pensárselo dos veces antes de meter a alguien
+                  en el equipo.
+                </p>
+                <Link
+                  href={dentro ? RUTA_APP : "/acceso?modo=registrarse"}
+                  className="btn btn-primary mt-5 w-full"
+                >
+                  {dentro ? "Ir a mi espacio" : "Empezar la prueba"}
+                </Link>
+                <p className="mt-2.5 text-center text-sm text-ink-soft">
+                  Sin tarjeta para probar.
+                </p>
+              </div>
+
+              <ul className="grid grid-cols-1 gap-x-10 gap-y-6 sm:grid-cols-2">
+                {PRECIO_INCLUYE.map(({ titulo, texto }) => (
+                  <li key={titulo}>
+                    <h3 className="text-[15px] font-semibold">{titulo}</h3>
+                    <p className="mt-1.5 text-sm leading-relaxed text-ink-soft">{texto}</p>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </AlEntrar>
+        </section>
+
         {/* ------------------------------------------------------- preguntas */}
         <section id="preguntas" className="scroll-mt-16 border-t border-line py-14 lg:py-20">
           <AlEntrar className="grid grid-cols-1 gap-8 lg:grid-cols-[18rem_minmax(0,1fr)] lg:gap-16">
@@ -978,15 +1049,24 @@ export default async function Portada({
             <span aria-hidden>·</span>
             <span>Hecho por un equipo LEINN, para los equipos LEINN.</span>
           </div>
-          <nav className="flex items-center gap-4">
+          <nav className="flex flex-wrap items-center gap-x-4 gap-y-2">
             <a href="#que-hace" className="transition hover:text-ink">
               Qué hace
+            </a>
+            <a href="#precio" className="transition hover:text-ink">
+              El precio
             </a>
             <a href="#preguntas" className="transition hover:text-ink">
               Preguntas
             </a>
             <Link href="/privacidad" className="transition hover:text-ink">
               Privacidad
+            </Link>
+            <Link href="/condiciones" className="transition hover:text-ink">
+              Condiciones
+            </Link>
+            <Link href="/aviso-legal" className="transition hover:text-ink">
+              Aviso legal
             </Link>
             <Link
               href={dentro ? RUTA_APP : "/acceso"}

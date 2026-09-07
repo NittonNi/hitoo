@@ -1,5 +1,7 @@
 import Link from "next/link"
 
+import { EMPRESA } from "@/lib/empresa"
+
 export const metadata = { title: "Política de privacidad" }
 
 /** Cuelga de la portada, así que va en claro como ella. */
@@ -17,17 +19,21 @@ export default function PaginaPrivacidad() {
       <h1 className="mt-6 text-3xl font-semibold tracking-tight text-ink">
         Política de privacidad
       </h1>
-      <p className="mt-2 text-sm text-muted">Última actualización: 29 de agosto de 2026.</p>
+      <p className="mt-2 text-sm text-muted">Última actualización: 7 de septiembre de 2026.</p>
 
       <div className="mt-10 space-y-10 text-sm leading-relaxed text-ink">
         <section>
           <p>
             hitoo es una aplicación de control de horas para equipos LEINN:
             cronómetro, hoja semanal, calendario e informes con importes. La
-            ofrece Nicolás Martínez Riego, y se puede escribir en cualquier
-            momento a{" "}
-            <a href="mailto:hitooclock@gmail.com" className="underline hover:text-muted">
-              hitooclock@gmail.com
+            ofrece la{" "}
+            <a href="/aviso-legal" className="underline hover:text-muted">
+              Asociación estudiantil junior empresa NITTON
+            </a>
+            , responsable del tratamiento de los datos, y se puede escribir en
+            cualquier momento a{" "}
+            <a href={`mailto:${EMPRESA.correo}`} className="underline hover:text-muted">
+              {EMPRESA.correo}
             </a>{" "}
             para cualquier pregunta sobre esta política o sobre los datos
             propios.
@@ -50,6 +56,13 @@ export default function PaginaPrivacidad() {
               cobran), los proyectos y tarifas que un administrador del
               espacio configure, y las propuestas de horas compartidas entre
               compañeros de equipo.
+            </li>
+            <li>
+              <strong>Si el espacio se suscribe:</strong> el nombre, el correo
+              y los datos fiscales necesarios para facturar, y un
+              identificador del cliente y de la suscripción en Stripe. Los
+              datos de la tarjeta no pasan por hitoo en ningún momento: se
+              escriben directamente en la pasarela de Stripe.
             </li>
             <li>
               <strong>Si se conecta Google Calendar</strong> (opcional, se
@@ -135,7 +148,8 @@ export default function PaginaPrivacidad() {
             hitoo no vende, alquila ni cede datos personales a nadie, y no los
             usa para publicidad ni para entrenar modelos de inteligencia
             artificial. Los datos solo llegan a estos destinatarios, y a
-            ninguno más:
+            ninguno más —y los que vienen de Google Calendar, solo a los tres
+            primeros—:
           </p>
           <ul className="mt-3 list-disc space-y-2 pl-5">
             <li>
@@ -162,6 +176,15 @@ export default function PaginaPrivacidad() {
               de las horas ni de los datos del calendario.
             </li>
             <li>
+              <strong>Stripe</strong> (Stripe Payments Europe, Ltd.), como
+              encargado del tratamiento, y <strong>solo si el espacio está
+              suscrito</strong>: cobra la cuota y emite las facturas, así que
+              recibe el nombre, el correo y los datos fiscales de quien
+              contrata, además de los de la tarjeta, que trata directamente
+              —hitoo nunca los ve—. No recibe ninguna hora apuntada, ningún
+              proyecto ni ningún dato venido de Google Calendar.
+            </li>
+            <li>
               <strong>Google</strong>, únicamente en sentido contrario: hitoo
               le pide a Google los eventos de quien ha conectado su
               calendario. No se le envían a Google datos de hitoo más allá de
@@ -169,6 +192,16 @@ export default function PaginaPrivacidad() {
               concedido.
             </li>
           </ul>
+          <p className="mt-3">
+            <strong>Sobre salir de Europa.</strong> Los datos se guardan en
+            servidores de la Unión Europea (Irlanda). Pero Supabase Inc. y
+            Vercel Inc. son empresas estadounidenses, así que su personal de
+            soporte puede llegar a acceder a ellos desde fuera del Espacio
+            Económico Europeo. Esos accesos están cubiertos por las cláusulas
+            contractuales tipo aprobadas por la Comisión Europea, que forman
+            parte del contrato de encargo firmado con cada proveedor. Stripe
+            contrata desde Irlanda (Stripe Payments Europe, Ltd.).
+          </p>
           <p className="mt-3">
             Los datos obtenidos de las APIs de Google no se transfieren a
             ningún otro tercero salvo que sea imprescindible para prestar el
@@ -240,8 +273,8 @@ export default function PaginaPrivacidad() {
             sigan activos. Para pedir la baja de una cuenta, la salida de un
             espacio o el borrado completo de los propios datos, basta con
             escribir a{" "}
-            <a href="mailto:hitooclock@gmail.com" className="underline hover:text-muted">
-              hitooclock@gmail.com
+            <a href={`mailto:${EMPRESA.correo}`} className="underline hover:text-muted">
+              {EMPRESA.correo}
             </a>
             .
           </p>
@@ -251,6 +284,110 @@ export default function PaginaPrivacidad() {
             vez que hace falta pintarlos— y el token de acceso se borra en el
             momento en que se desconecta el calendario, se borra la cuenta o
             se revoca el permiso desde la cuenta de Google.
+          </p>
+          <p className="mt-3">
+            Hay una excepción, y es de ley: <strong>las facturas</strong>. Si
+            el espacio llegó a pagar, los datos de facturación —quién contrató,
+            su NIF, su dirección y los importes— se conservan aunque se pida el
+            borrado, porque Hacienda y el Código de Comercio obligan a
+            guardarlos. Se quedan solo para eso, no se usan para nada más, y se
+            borran cuando vence el plazo. Todo lo demás —las horas, los
+            proyectos, la cuenta— sí se borra cuando lo pides.
+          </p>
+        </section>
+
+        <section>
+          <h2 className="text-lg font-semibold text-ink">
+            Con qué derecho se tratan
+          </h2>
+          <p className="mt-3">
+            No todo se trata por el mismo motivo, y conviene decir cuál es
+            cada uno:
+          </p>
+          <ul className="mt-3 space-y-3">
+            <li>
+              <strong>Para que la aplicación funcione</strong> —tu cuenta, tu
+              espacio, tus horas, tus proyectos— el motivo es el{" "}
+              <strong>contrato</strong>: es lo que hay que tratar para darte el
+              servicio que has contratado. Sin esos datos no hay aplicación.
+            </li>
+            <li>
+              <strong>Para cobrar y facturar</strong> el motivo es doble: el
+              contrato, y la <strong>obligación legal</strong> de emitir y
+              conservar facturas.
+            </li>
+            <li>
+              <strong>Para leer tu Google Calendar</strong> el motivo es tu{" "}
+              <strong>consentimiento</strong>, que das al conectarlo y retiras
+              al desconectarlo. Es opcional y va por persona: quien no lo
+              conecta, no tiene ese tratamiento.
+            </li>
+            <li>
+              <strong>Para mantener el servicio en pie</strong> —copias de
+              seguridad, registros de error, seguridad— el motivo es el{" "}
+              <strong>interés legítimo</strong> en que esto funcione y no se
+              pierda nada.
+            </li>
+          </ul>
+        </section>
+
+        <section>
+          <h2 className="text-lg font-semibold text-ink">
+            Qué puedes exigir, y a quién
+          </h2>
+          <p className="mt-3">
+            Sobre tus datos tienes estos derechos, y ejercerlos es gratis:
+          </p>
+          <ul className="mt-3 space-y-2">
+            <li>
+              <strong>Acceso:</strong> que te digamos qué tenemos tuyo.
+            </li>
+            <li>
+              <strong>Rectificación:</strong> que corrijamos lo que esté mal.
+            </li>
+            <li>
+              <strong>Supresión:</strong> que lo borremos, con los límites que
+              se explican abajo.
+            </li>
+            <li>
+              <strong>Limitación:</strong> que lo guardemos pero dejemos de
+              usarlo mientras se resuelve una discusión.
+            </li>
+            <li>
+              <strong>Portabilidad:</strong> que te lo demos en un formato que
+              puedas llevarte a otro sitio. Esto no hace falta ni pedirlo: la
+              descarga en Excel está dentro de la aplicación y es tuya cuando
+              quieras.
+            </li>
+            <li>
+              <strong>Oposición:</strong> que dejemos de tratar tus datos
+              cuando el motivo sea el interés legítimo.
+            </li>
+            <li>
+              <strong>Retirar el consentimiento</strong> que hayas dado —el de
+              Google Calendar— sin que eso afecte a lo hecho hasta entonces.
+            </li>
+          </ul>
+          <p className="mt-3">
+            Se ejercen escribiendo a{" "}
+            <a href={`mailto:${EMPRESA.correo}`} className="underline hover:text-muted">
+              {EMPRESA.correo}
+            </a>
+            , y se contesta en el plazo de un mes.
+          </p>
+          <p className="mt-3">
+            Si crees que no lo hemos hecho bien, puedes reclamar ante la{" "}
+            <strong>Agencia Española de Protección de Datos</strong> (
+            <a
+              href="https://www.aepd.es"
+              target="_blank"
+              rel="noreferrer noopener"
+              className="underline hover:text-muted"
+            >
+              www.aepd.es
+            </a>
+            ), que es la autoridad de control. No hace falta que hables antes
+            con nosotros, aunque se agradece.
           </p>
         </section>
 

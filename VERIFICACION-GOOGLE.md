@@ -59,8 +59,14 @@ detalle del plano 7 y el texto del correo estan tal cual se enviaron.
     proyectos y 36 horas apuntadas de las tres últimas semanas, para que la
     revisión no vea la app vacía.
   - Enlace de invitación con tres plazas libres:
-    **`https://www.hitoo.es/unirse/4thp5yhrn2`**
+    **`https://www.hitoo.es/unirse/<CODIGO>`**
     (plazas "Google reviewer 1", "2" y "3").
+
+    > **El código no se escribe aquí: este repo es público.** Un enlace de
+    > invitación es una puerta abierta a un espacio con datos dentro, igual
+    > que una contraseña. El de la ronda de agosto sí llegó a publicarse en
+    > este fichero y se rota el 7-sep-2026. Al mandarlo a Google va en el
+    > cuerpo del correo, nunca en un fichero del repositorio.
 
 ## Ojo con el camino que se les indica
 
@@ -111,7 +117,7 @@ correo.
 |---|-----------|--------|--------------|
 | 1 | `www.hitoo.es`, la portada quieta | 5 s | Que el revisor ate el nombre "hitoo" con la web y con la ficha de OAuth. Era uno de los avisos automáticos. |
 | 2 | `/acceso` → **Continuar con Google** → elegir la cuenta | 10 s | La entrada normal. Aquí **no** se pide el calendario: eso se ve en el plano 6, y es el argumento de que el permiso es opcional. |
-| 3 | `https://www.hitoo.es/unirse/4thp5yhrn2` → elegir "Google reviewer 1" → entrar | 10 s | El mismo camino que van a seguir ellos. |
+| 3 | `https://www.hitoo.es/unirse/<CODIGO>` → elegir "Google reviewer 1" → entrar | 10 s | El mismo camino que van a seguir ellos. |
 | 4 | El **Panel** con horas dentro | 5 s | Que se vea una app de verdad, no una demo vacía. |
 | 5 | Barra lateral → **Calendario** | 5 s | |
 | 6 | Botón **Conectar Google Calendar** → **Conectar con Google Calendar** | 5 s | |
@@ -187,7 +193,7 @@ test Google account. We have prepared a demo workspace with sample data for
 you to join:
 
 Sign-in page:    https://www.hitoo.es/acceso
-Invitation link: https://www.hitoo.es/unirse/4thp5yhrn2
+Invitation link: https://www.hitoo.es/unirse/<CODIGO>
                  (two free seats: "Google reviewer 2" and "Google reviewer 3")
 
 If you also want an account of ours, this one is a member of the same demo
@@ -209,7 +215,7 @@ The interface is in Spanish; the English translation is in brackets.
    [Continue with Google], using your own test Google account. This is a plain
    sign-in: it does NOT request the calendar scope. That is intentional —
    users who never use the calendar are never asked for that permission.
-2. Open https://www.hitoo.es/unirse/4thp5yhrn2 , pick one of the free seats
+2. Open https://www.hitoo.es/unirse/<CODIGO> , pick one of the free seats
    ("Google reviewer 2" or "Google reviewer 3") and confirm. You are now a member of the
    demo workspace "Equipo de demostración" [Demo team], which already contains
    projects and logged hours.
