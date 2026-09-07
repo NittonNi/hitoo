@@ -381,6 +381,17 @@
     background: var(--accent-hover);
     border-color: var(--accent-hover);
   }
+  /* Un primario apagado no puede quedarse azul: el 0.4 de opacidad de
+     .btn:disabled lo deja en el mismo azul claro que usa un chip
+     SELECCIONADO, asi que "no se puede pulsar" se leia como "elegido".
+     Visto en Informes con el espacio vacio: Excel parecia activo y CSV y
+     PDF apagados, siendo los tres lo mismo. */
+  .btn-primary:disabled {
+    background: var(--surface-2);
+    border-color: var(--line);
+    color: var(--muted);
+    opacity: 1;
+  }
 
   .btn-danger {
     color: var(--danger);

@@ -30,9 +30,16 @@ export function mensajeError(error: unknown): string {
     return "La hora de fin tiene que ser posterior a la de inicio."
   }
   if (code === "42501" || code === "PGRST301") {
-    return raw.includes("autorizada")
-      ? raw
-      : "No tienes permisos para hacer eso."
+    if (raw.includes("autorizada")) return raw
+    // La politica `time_entries_insert` lleva `puede_escribir(workspace_id)`:
+    // con la prueba acabada o la suscripcion cancelada, apuntar una hora
+    // nueva rebota aqui. Sin este caso el mensaje era "No tienes permisos",
+    // que hace pensar que te han cambiado el rol -y lo que pasa es que hay
+    // que pagar-.
+    if (raw.includes("time_entries")) {
+      return "Se acabó la prueba de este espacio: las horas que hay siguen aquí y se pueden corregir y exportar, pero no se pueden apuntar nuevas hasta suscribirlo."
+    }
+    return "No tienes permisos para hacer eso."
   }
 
   // El minimo de caracteres se puede cambiar desde el panel de Supabase: se

@@ -927,6 +927,30 @@ export type Database = {
           },
         ]
       }
+      trial_codes: {
+        Row: {
+          active: boolean
+          code: string
+          created_at: string
+          note: string | null
+          trial_days: number
+        }
+        Insert: {
+          active?: boolean
+          code: string
+          created_at?: string
+          note?: string | null
+          trial_days: number
+        }
+        Update: {
+          active?: boolean
+          code?: string
+          created_at?: string
+          note?: string | null
+          trial_days?: number
+        }
+        Relationships: []
+      }
       workspace_members: {
         Row: {
           active: boolean
@@ -1003,6 +1027,53 @@ export type Database = {
             foreignKeyName: "workspace_seats_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workspace_subscriptions: {
+        Row: {
+          cancel_at_period_end: boolean
+          created_at: string
+          current_period_end: string | null
+          status: string
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+          trial_code: string | null
+          trial_ends_at: string
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          cancel_at_period_end?: boolean
+          created_at?: string
+          current_period_end?: string | null
+          status?: string
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          trial_code?: string | null
+          trial_ends_at?: string
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          cancel_at_period_end?: boolean
+          created_at?: string
+          current_period_end?: string | null
+          status?: string
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          trial_code?: string | null
+          trial_ends_at?: string
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_subscriptions_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: true
             referencedRelation: "workspaces"
             referencedColumns: ["id"]
           },
@@ -1153,6 +1224,10 @@ export type Database = {
       }
     }
     Functions: {
+      aplicar_codigo_prueba: {
+        Args: { p_codigo: string; p_workspace: string }
+        Returns: string
+      }
       available_workspaces: {
         Args: never
         Returns: {

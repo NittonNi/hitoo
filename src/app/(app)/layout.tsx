@@ -10,6 +10,8 @@ import { ProveedorAvisos } from "@/components/avisos"
 import { GuiaInicial } from "@/components/guia-inicial"
 import { EsqueletoMarco } from "@/components/esqueleto-marco"
 import { veTodo } from "@/lib/roles"
+import { getSuscripcion } from "@/lib/suscripcion"
+import { AvisoCuota } from "@/components/aviso-cuota"
 
 /**
  * getSesion() usa cookies() (dato "runtime") y aquí además se consulta la
@@ -57,7 +59,10 @@ async function MarcoSesion({ children }: { children: React.ReactNode }) {
           el propio cronómetro puede avisar cuando algo le sale mal, en vez
           de sacar un alert */}
       <ProveedorCronometro espacioId={sesion.espacio.id} inicial={aEntradaEnMarcha(data)}>
-        <Armazon>{children}</Armazon>
+        <Armazon>
+          <AvisoCuota suscripcion={await getSuscripcion(sesion.espacio.id)} rol={sesion.rol} />
+          {children}
+        </Armazon>
         <GuiaInicial perfilId={sesion.perfil.id} esGestor={veTodo(sesion.rol)} />
       </ProveedorCronometro>
     </ProveedorSesion>

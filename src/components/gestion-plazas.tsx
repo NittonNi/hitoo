@@ -7,6 +7,7 @@ import { Check, Copy, Link2, Loader2, Plus, RotateCcw, Trash2 } from "lucide-rea
 import { createClient } from "@/lib/supabase/client"
 import { mensajeError } from "@/lib/errores"
 import type { Espacio } from "@/lib/tipos"
+import { EMPRESA, PRECIO } from "@/lib/empresa"
 import { cn, nuevoCodigo } from "@/lib/utils"
 
 export type Plaza = {
@@ -24,9 +25,12 @@ export type Plaza = {
 export function GestionPlazas({
   espacio,
   plazas,
+  personas,
 }: {
   espacio: Espacio
   plazas: Plaza[]
+  /** Cuanta gente va a haber en el espacio, contando huecos sin coger. */
+  personas: number
 }) {
   const router = useRouter()
   const [nombre, setNombre] = useState("")
@@ -97,6 +101,20 @@ export function GestionPlazas({
       {error && (
         <p className="mb-3 rounded-[var(--radio-sm)] bg-danger-soft p-2.5 text-sm text-danger">
           {error}
+        </p>
+      )}
+
+      {/* La cuota cubre 20 personas. Se avisa, no se corta: con un solo precio
+          y sin plan de mas arriba, cerrarle la puerta al equipo 21 es
+          rechazar al cliente mas grande que tienes. Decidido el 7-sep-2026. */}
+      {personas > PRECIO.personas && (
+        <p className="mb-3 rounded-[var(--radio-sm)] bg-surface-2 p-2.5 text-sm">
+          Sois <strong>{personas}</strong> y la cuota cubre {PRECIO.personas}.
+          No se corta nada y todo el mundo puede apuntar, pero escríbenos a{" "}
+          <a href={`mailto:${EMPRESA.correo}`} className="underline">
+            {EMPRESA.correo}
+          </a>{" "}
+          y lo ajustamos.
         </p>
       )}
 

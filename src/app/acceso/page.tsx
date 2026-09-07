@@ -30,6 +30,21 @@ export default function PaginaAcceso() {
         >
           <FormularioAcceso />
         </Suspense>
+
+        {/* Se entra por dos puertas -Google y el formulario- y el aviso tiene
+            que valer para las dos, asi que vive en la pagina y no dentro del
+            <form>. */}
+        <p className="mt-6 text-center text-xs leading-relaxed text-muted">
+          Al crear una cuenta aceptas las{" "}
+          <Link href="/condiciones" className="underline underline-offset-2 transition hover:text-ink">
+            condiciones de contratación
+          </Link>{" "}
+          y la{" "}
+          <Link href="/privacidad" className="underline underline-offset-2 transition hover:text-ink">
+            política de privacidad
+          </Link>
+          .
+        </p>
       </div>
     </main>
   )

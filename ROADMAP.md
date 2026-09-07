@@ -1616,6 +1616,146 @@ para poder buscar por ellas. Falta decidir:
 - si tienen ficha propia, como los proyectos, con sus horas;
 - si conviene que una entrada pueda llevar varias, o solo una.
 
+### Antes de venderla (1-sep-2026)
+
+Cuatro cosas que Nicolas quiere revisar antes de salir a vender, apuntadas
+mientras se montaba la pasarela de pago. No estan decididas, estan abiertas.
+
+- **Que le damos a un leinner que no le de un cronometro cualquiera.** Hoy la
+  respuesta esta repartida por la app -el €/h contra el objetivo, las
+  ediciones, las areas, el informe en Excel con columnas de verdad- pero no
+  esta dicha en ninguna parte, ni en la portada ni al entrar. Si no se sabe
+  decir en una frase, no se sabe vender.
+- **Los datos tienen que llegar masticados.** No basta con que la app los
+  guarde: al abrirla tiene que verse ya lo que hay que mirar, sin construirse
+  el usuario ningun informe. Hoy el Panel y Estadisticas ya apuntan ahi, pero
+  hay que decidir cual es la pantalla que contesta sola.
+- **Registrarse tiene que ser de verdad facil.** Menos pasos, menos campos, y
+  que nada de lo que se pueda deducir se pregunte. Medir donde se cae la gente
+  en `/empezar`.
+- **La importacion de datos, con cuidado.** Traerse el historico de otra
+  herramienta es la clase de tarea que parece una chorrada y se come semanas,
+  y si se hace mal ensucia la base para siempre. Duda abierta: si se cobra
+  aparte como servicio -no esta claro que lo quieran ni que lo paguen- o si
+  entra en la cuota.
+
+## Salir a vender: lo que falta para el push (repasado el 7-sep-2026)
+
+Google dio la verificacion el 2-sep, asi que **ya no bloquea nada**. Lo que
+queda para cobrar de verdad son tres cosas, y las tres estan fuera del codigo:
+son paneles de Stripe y de Vercel.
+
+### Bloquea el push
+
+1. ~~Rellenar `src/lib/empresa.ts`~~ **hecho el 1-sep**: Asociacion
+   estudiantil junior empresa Nitton, CIF G56659964, Paseo Uribitarte 6, 1.º,
+   48001 Bilbao.
+2. ~~Verificacion de Google~~ **aprobada el 2-sep** (hitoo-506113).
+3. **Modo real en Stripe**, que es una cuenta distinta del sandbox y no se ve
+   desde estas sesiones. Hay que recrear alli, a mano:
+   - **Producto** «hitoo — Equipo», descripcion "Control de horas para un
+     equipo de hasta 20 personas. Cuota mensual por espacio de trabajo.",
+     metadata `app=hitoo` (en el sandbox es `prod_VBDYmK4zl1h6aK`).
+   - **Precio** recurrente, 19,00 EUR, mensual, `tax_behavior: exclusive`
+     -es decir, SIN IVA incluido- (sandbox: `price_1UAr7n3wYiZE7FbO3FoYNsd8`).
+   - **Tipo de IVA** del 21%, en Productos > Tipos de impuesto (sandbox:
+     `txr_1UAs0M3wYiZE7FbOFGZvSODM`).
+   - **Endpoint de webhook** `https://www.hitoo.es/api/stripe/webhook`,
+     escuchando `checkout.session.completed` y `customer.subscription.*`, y
+     quedarse con su secreto de firma -que **no** es el del `stripe listen`-.
+   - **La URL de las condiciones** en Configuracion > Publico. Sin ella el
+     Checkout falla entero, porque desde el 7-sep pide aceptarlas
+     (`consent_collection`). Aprovechar y poner tambien nombre publico y
+     politica de reembolso.
+4. **Variables en Vercel** (Production y Preview), y redesplegar:
+   `STRIPE_SECRET_KEY`, `STRIPE_PRICE_ID`, `STRIPE_TAX_RATE_ID`,
+   `STRIPE_WEBHOOK_SECRET`, `SUPABASE_SERVICE_ROLE_KEY` y
+   `NEXT_PUBLIC_SITE_URL`. Todas estan documentadas en `.env.example` desde
+   el 7-sep, con el aviso de que sandbox y real son cuentas distintas.
+
+### Conviene antes de cobrar de verdad
+
+- **Revocar la clave secreta de Supabase** que se pego en el chat el 1-sep y
+  poner otra.
+- **Probar con el raton** la pagina de pago de Stripe (recogida de direccion
+  y NIF, la casilla de las condiciones, vuelta a la app) y el portal de
+  cliente. Lo unico que sigue sin probarse a mano.
+
+### Repaso del 7-sep-2026: siete cosas arregladas
+
+Todo esto salio mirando la pasarela pantalla por pantalla. Ordenado por lo
+que dolia:
+
+1. **El webhook perdia cobros en silencio.** `guardar()` se tragaba los
+   fallos en un `console.error` y `POST` contestaba `200` igual. Para Stripe
+   eso significa "entregado, olvidate": no reintenta. Alguien pagaba, la fila
+   no se escribia y no habia segunda oportunidad. Ahora cualquier fallo
+   -error de la base, o un UPDATE que no encuentra fila, que en Postgres **no
+   es un error**- lanza y devuelve **500**, que es lo que hace que Stripe
+   reintente durante dias. De paso el `checkout.session.completed` acepta la
+   suscripcion venga como identificador o ya expandida.
+2. **La politica de privacidad no cumplia el RGPD.** Le faltaban la base
+   juridica de cada tratamiento (art. 13.1.c), los derechos del interesado
+   (arts. 15-22) y la mencion a la **AEPD** (art. 13.2.d), que es obligatoria.
+   Escritos los tres apartados. Ademas decia que se borra todo al pedir la
+   baja, cuando **las facturas hay que conservarlas por ley**: ahora la
+   excepcion esta dicha. Y se añadieron las **transferencias
+   internacionales**, que faltaban: Supabase Inc. y Vercel Inc. son
+   estadounidenses aunque los servidores esten en Irlanda.
+   *Ojo*: es la pagina que Google reviso. No se toco nada de Calendar -los
+   bloques de Google, Limited Use y el cifrado siguen igual-, solo se
+   añadieron apartados.
+3. **El Checkout no pedia aceptar las condiciones.** Añadido
+   `consent_collection: { terms_of_service: "required" }` y `locale: "es"`.
+   Si falta la URL en el panel de Stripe, el error ya no llega en ingles:
+   dice donde se arregla.
+4. **`.env.example` estaba desactualizado y ademas mentia**: no tenia ninguna
+   de las variables de Stripe y decia "No hace falta una service_role key",
+   que dejo de ser cierto en cuanto existio el webhook.
+5. **Al caducar, el mensaje engañaba.** Intentar apuntar una hora rebotaba en
+   la politica `time_entries_insert` y `mensajeError` lo traducia como "No
+   tienes permisos para hacer eso" -que hace pensar que te han cambiado el
+   rol-. Ahora dice que se acabo la prueba y que las horas siguen ahi.
+6. **El precio estaba escrito a mano** en la portada y en la pantalla de
+   Cuota, y el "22.99 €" de las condiciones salia con **punto** por ser un
+   numero de JavaScript. Los tres sitios salen ya de `PRECIO`, y hay
+   `PRECIO.conIvaTexto` para escribirlo en castellano.
+7. **El correo estaba escrito a mano dos veces** en la politica; ahora sale
+   de `EMPRESA.correo`.
+
+**Comprobado y correcto, no hizo falta tocarlo:** el candado de pago es real
+y esta donde tiene que estar -la politica `time_entries_insert` lleva
+`puede_escribir(workspace_id)`, asi que un espacio caducado no puede apuntar
+horas nuevas pero si corregir y exportar, que es justo lo que promete la
+pagina de condiciones-. La funcion de la base y `leerEstado` dicen lo mismo.
+Los 9 espacios tienen su fila; los 7 anteriores a la migracion quedaron en
+`cortesia` hasta 2036, que es lo correcto para no cobrar de golpe a quien ya
+estaba.
+
+### Decisiones tomadas el 7-sep-2026 (no volver a abrirlas)
+
+- **El tope de 20 personas: se avisa, no se bloquea.** A partir de la persona
+  21 sale un aviso en Gestion > Equipo diciendo cuantos sois y que se hable
+  con nosotros; no se corta nada. El motivo: con un solo precio y sin plan de
+  mas arriba, cerrarle la puerta al equipo 21 es rechazar al cliente mas
+  grande que tienes. El recuento es quien esta dentro y activo **mas** los
+  huecos que nadie ha cogido -un hueco ya cogido no cuenta dos veces-.
+- **El correo sigue siendo `hitooclock@gmail.com` por ahora.** Es el que sale
+  en el aviso legal, en la politica y como via para ejercer los derechos
+  RGPD. Se sabe que un Gmail canta en un aviso legal con CIF y domicilio
+  reales; se cambia cuando exista el buzon en el dominio, y como vive en
+  `EMPRESA.correo` es cambiar una linea.
+
+### Lo que ya esta hecho y probado
+
+Tabla de suscripciones con RLS de solo lectura, prueba de 14 dias al crear el
+espacio, codigo `LEINNHITOO` de 30 dias, webhook firmado, Checkout con IVA
+aparte (19 + 3,99 = 22,99 €), portal de cliente, pantalla Gestion > Cuota,
+aviso en el armazon, seccion de precio en la portada, aviso legal,
+condiciones de contratacion y la politica de privacidad al dia. El ciclo
+entero -alta, cobro, webhook, baja, solo lectura y vuelta a abrir- verificado
+el 1-sep.
+
 ## Horas compartidas (19-ago-2026)
 
 Hecho: las propuestas se pintan en el calendario como invitacion -sin rellenar,

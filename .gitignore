@@ -44,3 +44,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Capturas de las revisiones de interfaz (skill ui-review). Se regeneran.
+.ui-loop/
