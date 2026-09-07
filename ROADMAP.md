@@ -718,7 +718,7 @@ Estado a 29-ago-2026:
    `hitooclock+google@gmail.com` con el correo ya confirmado -comprobado que
    entra-, espacio "Equipo de demostracion" con 4 ramas, 5 proyectos y 36
    horas de las tres ultimas semanas, y enlace de invitacion con tres plazas
-   libres, `https://www.hitoo.es/unirse/4thp5yhrn2`. La contrasena no se
+   libres, `https://www.hitoo.es/unirse/<CODIGO>`. La contrasena no se
    escribe en el repo -es publico-: va directa en el correo a Google.
 
    Al preparar las instrucciones aparecio el detalle de `signInWithOAuth`
