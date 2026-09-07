@@ -1652,8 +1652,14 @@ mientras se montaba la pasarela de pago. No estan decididas, estan abiertas.
     resuelven a lo que pille-. Es lo primero que ve un cliente al que le
     pasan el enlace.
   - **No hay `sitemap.ts`**, y `robots.ts` no apunta a ninguno.
-  - **Los iconos: hay TRES marcas distintas conviviendo** (inventariado el
-    7-sep-2026, mirando los ficheros uno a uno). El 20-ago se renombro a
+  - ~~**Los iconos: hay TRES marcas distintas conviviendo**~~ **arreglado el
+    7-sep-2026.** `apple-icon.png` (180x180) y `favicon.ico` (16/32/48/64)
+    se regeneraron con Pillow **desde `public/icons/icon-512.png`**, que es
+    la misma **h** de la PWA, asi que ya no hay forma de que se separen. El
+    apple-icon va **cuadrado a sangre sobre el negro de la marca**, sin
+    redondear: iOS pone su propia mascara y mandarlo ya redondeado le deja
+    las esquinas en negro puro. El favicon si conserva la transparencia,
+    como `icon.svg`. Lo que habia antes, para el registro: El 20-ago se renombro a
     hitoo "con logo propio" y se actualizaron `src/app/icon.svg` -la **h**
     blanca sobre negro-, los iconos de la PWA (`public/icons/*`, la **h**) y
     `public/hitoo-logo.svg` -el wordmark-. **Se quedaron atras dos:**
@@ -1664,9 +1670,9 @@ mientras se montaba la pasarela de pago. No estan decididas, estan abiertas.
     - `src/app/favicon.ico` **no se ha tocado nunca**: sigue siendo el de
       *"Initial commit from Create Next App"*, o sea **el logo de Next.js**.
       Y es el que suele mandar en la pestaña del navegador.
-    Arreglar esos dos **no toca nada de Google**: son ficheros del repo. La
-    pantalla de consentimiento ya lleva la **h**, que es la marca buena. El
-    descuadre no esta en Google, esta aqui.
+    No hizo falta tocar nada de Google: eran ficheros del repo, y la pantalla
+    de consentimiento ya llevaba la **h**. Google tarda en refrescar el icono
+    de resultados, asi que el cronometro puede seguir saliendo un tiempo.
   - **La pantalla de consentimiento de Google (hitoo-506113): CUIDADO.** Se
     ve pocha, si, pero **tocarla obliga a pasar otra vez la verificacion**,
     que se aprobo el 2-sep-2026 tras varias rondas. Asi que no se toca por
