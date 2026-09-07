@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useTransition } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu"
@@ -197,6 +197,20 @@ export function Armazon({ children }: { children: React.ReactNode }) {
 
 function SelectorEspacio() {
   const { espacio, espacios } = useSesion()
+  const [, empezarTransicion] = useTransition()
+
+  /* Radix cierra -y desmonta- el menu en cuanto se elige un item, y lo hace
+     dentro del propio click, antes de que el navegador llegue a enviar nada:
+     un <form> con boton de submit aqui dentro no sale nunca, porque para
+     cuando le toca el turno ya no esta en la pagina. Es el mismo motivo por el
+     que "Cerrar sesion" se dispara aparte. Asi que la accion se llama a mano
+     desde onSelect, que si corre antes del cierre. */
+  function elegir(id: string) {
+    if (id === espacio.id) return
+    empezarTransicion(() => {
+      void cambiarEspacio(id)
+    })
+  }
 
   return (
     <DropdownMenu.Root>
@@ -222,21 +236,18 @@ function SelectorEspacio() {
         >
           <p className="rotulo px-2 py-1.5">Espacios de trabajo</p>
           {espacios.map(({ espacio: e, rol }) => (
-            <DropdownMenu.Item key={e.id} asChild>
-              <form action={cambiarEspacio.bind(null, e.id)}>
-                <button
-                  type="submit"
-                  className="flex w-full items-center gap-2 rounded-[var(--radio-sm)] px-2 py-1.5 text-left text-sm outline-none transition hover:bg-surface-2 data-highlighted:bg-surface-2"
-                >
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate font-medium">{e.name}</span>
-                    <span className="rotulo block leading-tight">{NOMBRE_ROL[rol]}</span>
-                  </span>
-                  {e.id === espacio.id && (
-                    <Check className="h-4 w-4 shrink-0 text-accent" />
-                  )}
-                </button>
-              </form>
+            <DropdownMenu.Item
+              key={e.id}
+              onSelect={() => elegir(e.id)}
+              className="flex w-full cursor-pointer items-center gap-2 rounded-[var(--radio-sm)] px-2 py-1.5 text-left text-sm outline-none transition hover:bg-surface-2 data-highlighted:bg-surface-2"
+            >
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-medium">{e.name}</span>
+                <span className="rotulo block leading-tight">{NOMBRE_ROL[rol]}</span>
+              </span>
+              {e.id === espacio.id && (
+                <Check className="h-4 w-4 shrink-0 text-accent" />
+              )}
             </DropdownMenu.Item>
           ))}
           <DropdownMenu.Separator className="my-1 h-px bg-line" />
