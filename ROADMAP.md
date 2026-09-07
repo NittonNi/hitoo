@@ -1579,6 +1579,11 @@ real.
   solo desde informes, y una ficha por etiqueta parecida a la de proyecto.
 - **Regenerar `database.types.ts`** entero en la proxima migracion: los tipos de
   `entry_invitations` y `resumen_proyectos` se anadieron a mano.
+- **Mover la pantalla de la cuota**: hoy vive en Gestion > Cuota y a Nicolas no
+  le convence estar ahi (7-sep-2026, dicho mientras se probaba el pago en
+  vivo). No hay decision de a donde va; queda apuntado para mirarlo con calma.
+  Al moverla, acordarse de que `crearPago` y `abrirPortal` vuelven a
+  `/gestion/suscripcion` en `success_url`, `cancel_url` y `return_url`.
 
 ## Hecho
 
@@ -1663,15 +1668,29 @@ son paneles de Stripe y de Vercel.
      `tax_behavior: exclusive`, activo. Los precios si cogieron ID nuevo:
      **real `price_1UD2SF33CM0L7G6YpHQS2jyl`**, sandbox
      `price_1UAr7n3wYiZE7FbO3FoYNsd8`.
-   - **Tipo de IVA** del 21%, en Productos > Tipos de impuesto (sandbox:
-     `txr_1UAs0M3wYiZE7FbOFGZvSODM`).
-   - **Endpoint de webhook** `https://www.hitoo.es/api/stripe/webhook`,
-     escuchando `checkout.session.completed` y `customer.subscription.*`, y
-     quedarse con su secreto de firma -que **no** es el del `stripe listen`-.
-   - **La URL de las condiciones** en Configuracion > Publico. Sin ella el
-     Checkout falla entero, porque desde el 7-sep pide aceptarlas
-     (`consent_collection`). Aprovechar y poner tambien nombre publico y
-     politica de reembolso.
+   - ~~**Tipo de IVA**~~ **hecho el 7-sep**, pero a la segunda:
+     **real `txr_1UD44E33CM0L7G6Yl6eMbDP8`**, sandbox
+     `txr_1UAs0M3wYiZE7FbOFGZvSODM`. El primero se creo marcando "incluir
+     impuestos en el precio" y el Checkout ni abria: *"One or more prices has
+     a `tax_behavior` that conflicts with the tax rates that apply to the
+     corresponding line item"*. El precio es **exclusive**, asi que el tipo
+     tiene que ser **exclusive** tambien -el IVA se SUMA, la casilla va que
+     NO-. Y **los tipos de impuesto de Stripe son inmutables**: solo se les
+     puede cambiar el nombre, la descripcion y archivarlos. El
+     inclusive/exclusive y el porcentaje **no se editan**, hay que crear otro
+     y archivar el malo.
+   - ~~**Endpoint de webhook**~~ **hecho el 7-sep**:
+     `https://www.hitoo.es/api/stripe/webhook` con los cuatro eventos que
+     trata el codigo (`checkout.session.completed` y los tres
+     `customer.subscription.*`). Su secreto de firma **no** es el del
+     `stripe listen`.
+   - ~~**La URL de las condiciones**~~ **hecha el 7-sep**, en Configuracion >
+     Publico (`dashboard.stripe.com/settings/public`), junto a la de
+     privacidad. Sin ella el Checkout falla entero, porque pide aceptarlas
+     (`consent_collection`); ese caso tiene mensaje propio en castellano en
+     `crearPago`, y funciono: fue lo que aviso.
+   - **Pendiente ahi mismo**: los campos de *customer support* (correo,
+     telefono, direccion), que salen en el Checkout y en la factura.
 4. **Variables en Vercel**, y redesplegar. Son **cinco y solo en
    Production**: `STRIPE_SECRET_KEY`, `STRIPE_PRICE_ID`,
    `STRIPE_TAX_RATE_ID`, `STRIPE_WEBHOOK_SECRET` y
@@ -1711,6 +1730,27 @@ son paneles de Stripe y de Vercel.
 - **Probar con el raton** la pagina de pago de Stripe (recogida de direccion
   y NIF, la casilla de las condiciones, vuelta a la app) y el portal de
   cliente. Lo unico que sigue sin probarse a mano.
+- **Una via de contacto para el cliente** (apuntado por Nicolas el 7-sep-2026).
+  La LSSICE (art. 10) obliga a publicar los datos del prestador y **un medio
+  de comunicacion directa y efectiva**. Hoy eso existe pero a medias: el
+  correo sale en `/aviso-legal` y en `/privacidad`, sacado de
+  `EMPRESA.correo`, y no hay ninguna pagina ni seccion de contacto propia. Al
+  cobrar hace falta ademas un canal de soporte visible, y los campos de
+  *customer support* del panel de Stripe (email, telefono, direccion) salen
+  en el Checkout y en la factura. Sigue siendo `hitooclock@gmail.com`, que
+  como ya se dijo canta al lado de un CIF real.
+- **Cookies, mirarlo en serio** (apuntado por Nicolas el 7-sep-2026).
+  Auditado ese dia: **no hay ni una dependencia de analitica** -ni Vercel
+  Analytics, ni Google, ni Sentry, ni Posthog- **ni un solo script de
+  terceros** en `src/`. Las unicas cookies son propias y funcionales: la
+  sesion de Supabase, `espacio` (`src/lib/sesion.ts`) y `directo`
+  (`src/lib/cookies.ts`). Todas entran en la excepcion del art. 22.2 de la
+  LSSICE, que exime de consentimiento a las estrictamente necesarias, **asi
+  que hoy no hace falta banner** -y menos uno de esos que no dejan entrar-.
+  Lo que si falta es contarlas: una seccion de cookies en `/privacidad`
+  diciendo cuales son, para que sirven y cuanto duran. Y en cuanto se
+  añada la primera analitica, esto cambia y el banner pasa a ser obligatorio:
+  no meterla sin volver aqui.
 
 ### Repaso del 7-sep-2026: siete cosas arregladas
 
