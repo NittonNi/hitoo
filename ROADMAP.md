@@ -1748,9 +1748,19 @@ son paneles de Stripe y de Vercel.
   LSSICE, que exime de consentimiento a las estrictamente necesarias, **asi
   que hoy no hace falta banner** -y menos uno de esos que no dejan entrar-.
   Lo que si falta es contarlas: una seccion de cookies en `/privacidad`
-  diciendo cuales son, para que sirven y cuanto duran. Y en cuanto se
-  añada la primera analitica, esto cambia y el banner pasa a ser obligatorio:
-  no meterla sin volver aqui.
+  diciendo cuales son, para que sirven y cuanto duran.
+  **Medir el uso NO obliga a poner banner**, y conviene tenerlo claro antes
+  de elegir herramienta, porque Nicolas ya quiere una revision de uso -horas
+  apuntadas, equipos activos, cuantos llegan al final de la prueba- (7-sep-
+  2026). Tres niveles:
+  1. **Consultas sobre la propia base.** Todo eso ya esta en Supabase: es SQL
+     sobre tablas propias. Cero cookies, cero banner, y cubre casi todo lo
+     que se quiere saber.
+  2. **Analitica sin cookies** (Vercel Web Analytics, Plausible): no guardan
+     nada en el dispositivo, asi que el art. 22.2 ni entra. Tampoco banner.
+  3. **Google Analytics y similares**: cookies e identificadores
+     persistentes. **Ahi si**, y con rechazar tan facil como aceptar.
+  Solo el 3 obliga a banner. No caer en el por inercia.
 
 ### Repaso del 7-sep-2026: siete cosas arregladas
 
