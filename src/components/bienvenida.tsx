@@ -1,10 +1,11 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useState } from "react"
 import Link from "next/link"
 import { ArrowRight, Building2, LogOut, Mail, Plus } from "lucide-react"
 
-import { cambiarEspacio } from "@/app/acciones"
+import { useCambioEspacio } from "@/components/cambio-espacio"
+import { EsqueletoMarco } from "@/components/esqueleto-marco"
 import { createClient } from "@/lib/supabase/client"
 import { mensajeError } from "@/lib/errores"
 import { NOMBRE_ROL } from "@/lib/roles"
@@ -30,12 +31,16 @@ export function Bienvenida({
 }) {
   const [ocupado, setOcupado] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [, empezarTransicion] = useTransition()
+  /* Aqui no hay avisos abajo a la derecha -ProveedorAvisos vive en el layout
+     de (app)-, asi que el fallo va a la linea de error de la propia pagina */
+  const { cambiando, cambiar } = useCambioEspacio(() => {
+    setOcupado(false)
+    setError("No se ha podido entrar en ese espacio. Prueba otra vez.")
+  })
 
   function entrar(id: string) {
-    empezarTransicion(() => {
-      void cambiarEspacio(id)
-    })
+    setError(null)
+    cambiar(id)
   }
 
   async function unirse(id: string) {
@@ -50,6 +55,12 @@ export function Bienvenida({
     }
     entrar(id)
   }
+
+  /* Entrar siempre acaba en el panel: mientras llega se ve ya su marco en
+     esqueleto, el mismo que pinta el layout de (app) al cargar, asi que el
+     relevo no salta. Si falla, la transicion acaba y vuelve la lista con el
+     error. */
+  if (cambiando) return <EsqueletoMarco />
 
   return (
     <main className="tema-claro mx-auto flex min-h-dvh max-w-lg flex-col justify-center px-4 py-10">

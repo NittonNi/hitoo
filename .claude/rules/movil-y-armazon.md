@@ -4,6 +4,8 @@ paths:
   - "src/app/layout.tsx"
   - "src/components/barra-teclado.tsx"
   - "src/components/armazon.tsx"
+  - "src/components/cambio-espacio.ts"
+  - "src/components/bienvenida.tsx"
   - "src/components/sub-nav.tsx"
   - "src/components/esqueleto-marco.tsx"
   - "src/components/esqueleto-pagina.tsx"
@@ -19,3 +21,4 @@ paths:
 - `min-h-dvh` en el armazón y `env(safe-area-inset-bottom)` en la barra inferior. `touch-action: manipulation` y sin `-webkit-tap-highlight-color`.
 - **Radios**: `--radio` y `--radio-sm` en `globals.css`. Los `rounded-lg`/`rounded-xl` sueltos no se enteran cuando cambian los tokens.
 - **El layout de `(app)` tiene su propio Suspense** (`MarcoSesion` con `EsqueletoMarco`): sin él, la navegación se quedaba parada y sin aviso mientras cargaba la sesión.
+- **Cambiar de espacio** (`cambio-espacio.ts`): en el mismo clic, el selector enseña el espacio elegido y el contenido pasa al esqueleto del cronómetro. La acción acaba en `redirect`, y en Next 16.3 eso llega como una promesa rechazada. Se reconoce con `unstable_rethrow`; si no, cada cambio que va bien avisaría de un error.

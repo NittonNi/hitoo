@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useTransition } from "react"
+import { useEffect, useRef } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu"
@@ -25,7 +25,9 @@ import {
   Users,
 } from "lucide-react"
 
-import { cambiarEspacio } from "@/app/acciones"
+import CargandoCronometro from "@/app/(app)/panel/loading"
+import { useAvisos } from "@/components/avisos"
+import { useCambioEspacio, type CambioEspacio } from "@/components/cambio-espacio"
 import { useSesion } from "@/components/proveedor-sesion"
 import { useCronometro } from "@/components/proveedor-cronometro"
 import { SelectorTema } from "@/components/selector-tema"
@@ -119,13 +121,19 @@ function estaActivo(pathname: string, href: string, exacto?: boolean) {
 export function Armazon({ children }: { children: React.ReactNode }) {
   const grupos = useGrupos()
   const pathname = usePathname()
+  const { avisar } = useAvisos()
+  /* Aqui y no en cada selector: hay dos -barra lateral y cabecera del movil- y
+     los dos, y tambien el contenido, tienen que enterarse del mismo cambio */
+  const cambio = useCambioEspacio(() =>
+    avisar("No se ha podido cambiar de espacio. Prueba otra vez.", undefined, "mal"),
+  )
 
   return (
     <div className="flex min-h-dvh">
       {/* ------------------------------------------------ barra lateral */}
       <aside className="no-print sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r border-line bg-surface-2/60 lg:flex">
         <div className="p-2">
-          <SelectorEspacio />
+          <SelectorEspacio cambio={cambio} />
         </div>
 
         <nav className="flex-1 space-y-4 overflow-y-auto p-2 pt-3">
@@ -173,7 +181,7 @@ export function Armazon({ children }: { children: React.ReactNode }) {
       {/* ------------------------------------------------------ contenido */}
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="no-print sticky top-0 z-20 flex h-14 items-center gap-2 border-b border-line bg-surface/85 px-4 backdrop-blur lg:hidden">
-          <SelectorEspacio />
+          <SelectorEspacio cambio={cambio} />
           <div className="ml-auto flex shrink-0 items-center gap-2">
             <CronometroPastilla />
             <MenuUsuario />
@@ -182,8 +190,17 @@ export function Armazon({ children }: { children: React.ReactNode }) {
 
         {/* `min-w-0`: sin esto, una tabla ancha estira toda la pagina y el movil
             se va de lado en vez de dejar que la tabla ruede por dentro */}
-        <main className="mx-auto w-full min-w-0 max-w-[90rem] flex-1 px-4 py-5 pb-24 lg:px-8 lg:py-7 lg:pb-7">
-          {children}
+        <main
+          aria-busy={cambio.cambiando}
+          className="mx-auto w-full min-w-0 max-w-[90rem] flex-1 px-4 py-5 pb-24 lg:px-8 lg:py-7 lg:pb-7"
+        >
+          {/* Cambiar de espacio siempre acaba en el cronometro, asi que mientras
+              llega se ve ya su esqueleto. La pagina de antes se esconde y no se
+              desmonta: si el cambio falla, vuelve tal cual estaba, con lo que
+              hubiera a medio escribir. `contents` para que el envoltorio no
+              cambie la maquetacion de lo de dentro. */}
+          {cambio.cambiando && <CargandoCronometro />}
+          <div className={cambio.cambiando ? "hidden" : "contents"}>{children}</div>
         </main>
 
         <BarraInferior />
@@ -195,21 +212,26 @@ export function Armazon({ children }: { children: React.ReactNode }) {
 
 /* --------------------------------------------------------------- espacios */
 
-function SelectorEspacio() {
-  const { espacio, espacios } = useSesion()
-  const [, empezarTransicion] = useTransition()
+function SelectorEspacio({ cambio }: { cambio: CambioEspacio }) {
+  const { espacio: activo, espacios } = useSesion()
+  /* El de la sesion no cambia hasta que vuelve el servidor: mientras tanto se
+     enseña el elegido, que es lo que se acaba de pedir */
+  const espacio =
+    espacios.find((p) => p.espacio.id === cambio.elegido)?.espacio ?? activo
 
   /* Radix cierra -y desmonta- el menu en cuanto se elige un item, y lo hace
      dentro del propio click, antes de que el navegador llegue a enviar nada:
      un <form> con boton de submit aqui dentro no sale nunca, porque para
      cuando le toca el turno ya no esta en la pagina. Es el mismo motivo por el
      que "Cerrar sesion" se dispara aparte. Asi que la accion se llama a mano
-     desde onSelect, que si corre antes del cierre. */
+     desde onSelect, que si corre antes del cierre.
+
+     Se compara con el que se enseña y no con el de la sesion: si se elige
+     otro y, antes de que llegue, se vuelve al de antes, eso tambien es un
+     cambio que hay que pedir. */
   function elegir(id: string) {
     if (id === espacio.id) return
-    empezarTransicion(() => {
-      void cambiarEspacio(id)
-    })
+    cambio.cambiar(id)
   }
 
   return (
