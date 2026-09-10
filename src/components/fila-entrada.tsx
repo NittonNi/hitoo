@@ -287,7 +287,9 @@ export function FilaEntrada({
               className={cn(pulsable, "block w-full truncate text-[0.9375rem]")}
             >
               {entrada.description || (
-                <span className="text-muted">Sin descripción</span>
+                <span className="text-muted">
+                  {bloqueada ? "Sin descripción" : "Añadir descripción"}
+                </span>
               )}
             </button>
           )}
@@ -347,7 +349,9 @@ export function FilaEntrada({
                   </span>
                 </>
               ) : (
-                <span className="text-[0.8125rem] text-muted">Sin proyecto</span>
+                <span className="text-[0.8125rem] text-muted">
+                  {bloqueada ? "Sin proyecto" : "Añadir proyecto"}
+                </span>
               )}
             </button>
           )}
@@ -499,7 +503,9 @@ export function FilaEntrada({
                 </span>
               </>
             ) : (
-              <span className="shrink-0">Sin proyecto</span>
+              <span className="shrink-0">
+                {bloqueada ? "Sin proyecto" : "Añadir proyecto"}
+              </span>
             )}
             <span aria-hidden>·</span>
             <span className="tabular shrink-0">

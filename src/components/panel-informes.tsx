@@ -762,7 +762,8 @@ export function PanelInformes({
                       {/* En movil no hay columna para la descripcion ni para
                           la persona: van aqui debajo, en pequeño */}
                       <span className="mt-0.5 block truncate text-xs text-muted sm:hidden">
-                        {entrada.description || "Sin descripción"}
+                        {entrada.description ||
+                          (puedeEditar(entrada) ? "Añadir descripción" : "Sin descripción")}
                         {" · "}
                         {entrada.user_name}
                       </span>

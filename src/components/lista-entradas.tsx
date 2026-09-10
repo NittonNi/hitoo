@@ -432,7 +432,9 @@ function FilaGrupo({
                   {descripciones.join(" · ")}
                 </span>
               ) : descripcion === "" ? (
-                <span className="text-muted">Sin descripción</span>
+                <span className="text-muted">
+                  {bloqueado ? "Sin descripción" : "Añadir descripción"}
+                </span>
               ) : (
                 descripcion
               )}
@@ -503,7 +505,9 @@ function FilaGrupo({
                   </span>
                 </>
               ) : (
-                <span className="text-[0.8125rem] text-muted">Sin proyecto</span>
+                <span className="text-[0.8125rem] text-muted">
+                  {bloqueado ? "Sin proyecto" : "Añadir proyecto"}
+                </span>
               )}
             </button>
           )}

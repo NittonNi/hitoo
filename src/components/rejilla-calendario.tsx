@@ -1507,7 +1507,11 @@ function ColumnaDia({
               // -y sin proyecto el gris de respaldo se leeria mal como texto.
               style={!pendiente ? { color } : undefined}
             >
-              {bloque.entrada.description || bloque.entrada.project_name || "Sin descripción"}
+              {bloque.entrada.description ||
+                bloque.entrada.project_name ||
+                (editable && !pendiente && !bloque.entrada.locked
+                  ? "Añadir descripción"
+                  : "Sin descripción")}
             </p>
             <p className="cifra truncate text-[10px] leading-tight text-muted">
               {invitacion && <span className="cifra-no">de {bloque.entrada.user_name} · </span>}
