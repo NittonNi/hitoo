@@ -268,7 +268,10 @@ function SelectorEspacio() {
 
 /* -------------------------------------------------------------- cronómetro */
 
-/** Titulo de la pestaña: la cuenta corre aunque la ventana este de fondo. */
+/**
+ * Titulo de la pestaña: la cuenta corre aunque la ventana este de fondo. Va el
+ * proyecto y no la descripcion, que entre pestañas se busca en que se trabaja.
+ */
 function useTituloCronometro() {
   const { enMarcha, segundos } = useCronometro()
 
@@ -277,7 +280,7 @@ function useTituloCronometro() {
       document.title = "hitoo"
       return
     }
-    const etiqueta = enMarcha.description || enMarcha.proyecto?.name || "En marcha"
+    const etiqueta = enMarcha.proyecto?.name || enMarcha.description || "En marcha"
     document.title = `${formatDuration(segundos)} · ${etiqueta}`
   }, [enMarcha, segundos])
 }
