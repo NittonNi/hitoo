@@ -297,13 +297,19 @@ function SelectorEspacio({ cambio }: { cambio: CambioEspacio }) {
 function useTituloCronometro() {
   const { enMarcha, segundos } = useCronometro()
 
+  /* Sin nada en marcha no se toca: se queda el de la pagina, que pone Next
+     ("Calendario · hitoo"). Al parar, o al remontarse con otro espacio, se
+     devuelve el que habia, pero solo si sigue el nuestro: al navegar, Next
+     pone el de la pagina nueva y ese manda. */
   useEffect(() => {
-    if (!enMarcha) {
-      document.title = "hitoo"
-      return
-    }
+    if (!enMarcha) return
+    const dePagina = document.title
     const etiqueta = enMarcha.proyecto?.name || enMarcha.description || "En marcha"
-    document.title = `${formatDuration(segundos)} · ${etiqueta}`
+    const titulo = `${formatDuration(segundos)} · ${etiqueta}`
+    document.title = titulo
+    return () => {
+      if (document.title === titulo) document.title = dePagina
+    }
   }, [enMarcha, segundos])
 }
 
