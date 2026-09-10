@@ -5,7 +5,6 @@ paths:
   - "src/components/tabla-semana.tsx"
   - "src/components/lista-entradas.tsx"
   - "src/components/fila-entrada.tsx"
-  - "src/components/fila-en-marcha.tsx"
   - "src/components/dialogo-entrada.tsx"
   - "src/components/propuestas-pendientes.tsx"
   - "src/components/compartir-con.tsx"
@@ -27,6 +26,6 @@ paths:
 - **Deshacer una hora recién creada** borra también sus `entry_invitations` explícitamente, aunque la FK sea CASCADE.
 - **Eventos de Google Calendar**: se pintan como una propuesta, con icono de calendario. Solo salen las reuniones aceptadas y de la semana que se mira. Al aceptar se guardan `source: "google_calendar"` y el id del evento en `external_id`, para no repetirlos.
 - **Ratos agrupados** en el cronómetro: mismo día y mismo proyecto/edición salen en una fila. Editarla cambia todos los de dentro, con Deshacer.
-- **Continuar** crea una entrada nueva. La entrada en marcha se ve como una fila naranja encima de la lista (`FilaEnMarcha`).
+- **Continuar** crea una entrada nueva. La entrada en marcha se ve una sola vez por pantalla: en `/panel`, en la barra de arriba (la fila repetida encima de la lista se quitó el 10-sep-2026). Si arranca con la barra fuera de la vista, la página sube hasta ella; `scroll-mt` salva la cabecera fija del móvil.
 - `/panel`, `/calendario` y `/semana` piden solo entradas terminadas (`soloTerminadas` en `cargarEntradas()`): la que está en marcha ya la trae el layout.
 - **Relojes**: las horas apuntadas a mano usan la hora del navegador; `start_timer`, la del servidor.

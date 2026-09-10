@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import * as Popover from "@radix-ui/react-popover"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -65,6 +65,19 @@ export function BarraCronometro({
   const [compartidos, setCompartidos] = useState<string[]>([])
   const [avisoCompartir, setAvisoCompartir] = useState<string | null>(null)
   const supabase = useRef(createClient())
+
+  /* El cronometro en marcha solo se ve aqui: si arranca con la barra fuera de
+     la vista -Continuar en una hora de mas abajo-, la pagina sube hasta ella.
+     Si no, parece que el boton no ha hecho nada. */
+  const barraRef = useRef<HTMLDivElement>(null)
+  const idEnMarcha = enMarcha?.id
+  const idAnterior = useRef(idEnMarcha)
+  useEffect(() => {
+    if (idEnMarcha && idEnMarcha !== idAnterior.current) {
+      barraRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" })
+    }
+    idAnterior.current = idEnMarcha
+  }, [idEnMarcha])
 
   // Mientras corre el cronómetro, la barra muestra y edita esa entrada
   const activo = enMarcha
@@ -250,8 +263,10 @@ export function BarraCronometro({
        tiñe, late a la izquierda y la cuenta manda. No hace falta buscarlo en
        ningun otro sitio de la pantalla. */
     <div
+      ref={barraRef}
       className={cn(
-        "card overflow-visible p-3 transition-colors",
+        /* el margen salva la cabecera fija del movil al subir hasta aqui */
+        "card scroll-mt-20 overflow-visible p-3 transition-colors lg:scroll-mt-8",
         enMarcha && "border-live-line bg-live-soft",
       )}
     >

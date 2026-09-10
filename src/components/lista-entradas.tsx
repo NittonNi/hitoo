@@ -7,7 +7,6 @@ import { ChevronRight, Euro, Play, Tag } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { mensajeError } from "@/lib/errores"
 import { FilaEntrada } from "@/components/fila-entrada"
-import { FilaEnMarcha } from "@/components/fila-en-marcha"
 import { useAvisos } from "@/components/avisos"
 import { useCronometro } from "@/components/proveedor-cronometro"
 import { SelectorProyecto } from "@/components/selector-proyecto"
@@ -102,22 +101,18 @@ export function ListaEntradas({
 
   if (semanas.length === 0) {
     return (
-      <>
-        <FilaEnMarcha catalogo={catalogo} />
-        <div className="card px-6 py-12 text-center">
-          <p className="text-sm font-medium">Aquí aparecerán tus horas</p>
-          <p className="mx-auto mt-1 max-w-sm text-sm text-muted">
-            Escribe arriba en qué estás trabajando y dale al play. En modo
-            manual apuntas un rato que ya has echado.
-          </p>
-        </div>
-      </>
+      <div className="card px-6 py-12 text-center">
+        <p className="text-sm font-medium">Aquí aparecerán tus horas</p>
+        <p className="mx-auto mt-1 max-w-sm text-sm text-muted">
+          Escribe arriba en qué estás trabajando y dale al play. En modo
+          manual apuntas un rato que ya has echado.
+        </p>
+      </div>
     )
   }
 
   return (
     <div className="space-y-6">
-      <FilaEnMarcha catalogo={catalogo} />
       {semanas.map(({ semana, dias }) => {
         const totalSemana = dias.reduce(
           (s, { grupos }) => s + segundosDe(grupos.flatMap((g) => g.entradas)),
