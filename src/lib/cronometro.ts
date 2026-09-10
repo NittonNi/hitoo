@@ -1,4 +1,45 @@
-import type { EntradaEnMarcha } from "@/lib/tipos"
+import type { EntradaEnMarcha, Pertenencia } from "@/lib/tipos"
+
+/**
+ * Pasado este rato, un cronómetro en marcha seguramente se ha olvidado: sale
+ * una línea que lo pregunta, sea del espacio que sea. Antes, el de otro
+ * espacio no se ve.
+ */
+export const SEGUNDOS_OLVIDO = 10 * 3600
+
+/** Un cronómetro tuyo que corre en otro espacio: lo justo para avisar y pararlo. */
+export type EnMarchaEnOtroEspacio = {
+  id: string
+  start_at: string
+  espacioId: string
+  espacioNombre: string
+}
+
+/**
+ * De tus entradas en marcha, las de los otros espacios, con su nombre y en el
+ * orden del selector. El nombre sale de tus pertenencias: si ya no estás en
+ * ese espacio, lo suyo no se enseña.
+ */
+export function enMarchaEnOtrosEspacios(
+  filas: readonly { id: string; workspace_id: string; start_at: string }[] | null,
+  espacios: Pertenencia[],
+  espacioActualId: string,
+): EnMarchaEnOtroEspacio[] {
+  return espacios.flatMap(({ espacio }) => {
+    if (espacio.id === espacioActualId) return []
+    const fila = filas?.find((f) => f.workspace_id === espacio.id)
+    return fila
+      ? [
+          {
+            id: fila.id,
+            start_at: fila.start_at,
+            espacioId: espacio.id,
+            espacioNombre: espacio.name,
+          },
+        ]
+      : []
+  })
+}
 
 /**
  * Tiene que ser un literal: si se construye concatenando, PostgREST pierde

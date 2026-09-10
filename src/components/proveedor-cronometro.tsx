@@ -37,7 +37,12 @@ export function ProveedorCronometro({
   inicial,
   children,
 }: {
-  /** El cronómetro es único por persona, pero solo se ve en su espacio. */
+  /**
+   * Uno en marcha por espacio, y este proveedor solo sabe del suyo. El layout
+   * le pone el espacio de `key`: al cambiar de espacio nace de nuevo en vez de
+   * seguir contando el del anterior, y lo que llegue tarde del viejo (un
+   * recargar, un parar a medias) cae en un componente ya desmontado.
+   */
   espacioId: string
   inicial: EntradaEnMarcha | null
   children: React.ReactNode
@@ -71,12 +76,13 @@ export function ProveedorCronometro({
     }
   }, [enMarcha])
 
-  const recargar = useCallback(async () => {
+  /** El que corre en este espacio según el servidor; undefined si no hay sesión. */
+  const leer = useCallback(async () => {
     const supabase = supabaseRef.current
     const {
       data: { user },
     } = await supabase.auth.getUser()
-    if (!user) return
+    if (!user) return undefined
 
     const { data } = await supabase
       .from("time_entries")
@@ -86,8 +92,13 @@ export function ProveedorCronometro({
       .is("end_at", null)
       .maybeSingle()
 
-    setEnMarcha(aEntradaEnMarcha(data))
+    return aEntradaEnMarcha(data)
   }, [espacioId])
+
+  const recargar = useCallback(async () => {
+    const leida = await leer()
+    if (leida !== undefined) setEnMarcha(leida)
+  }, [leer])
 
   // Si arrancaste el cronómetro en el movil y abres el portatil, que cuadre.
   useEffect(() => {
@@ -108,6 +119,10 @@ export function ProveedorCronometro({
       try {
         const { error } = await supabaseRef.current.rpc("start_timer", {
           p_workspace_id: espacioId,
+          /* Cierra solo el que corriera en este espacio: el de otro sigue a lo
+             suyo. Sin esto la base los cierra todos, que es lo que espera la
+             version anterior de la app mientras siga desplegada. */
+          p_solo_este_espacio: true,
           // La funcion recibe uuid opcional: null y undefined valen lo mismo
           p_project_id: borrador.project_id ?? undefined,
           p_edition_id: borrador.edition_id ?? undefined,
@@ -131,18 +146,37 @@ export function ProveedorCronometro({
   const parar = useCallback(async () => {
     setCargando(true)
     try {
-      const { data, error } = await supabaseRef.current.rpc("stop_timer")
+      // Con el espacio: sin él, la base para el primero que encuentre, sea de donde sea
+      const { data, error } = await supabaseRef.current.rpc("stop_timer", {
+        p_workspace_id: espacioId,
+      })
       if (error) throw error
-      setEnMarcha(null)
       router.refresh()
-      return (data as Entrada | null) ?? null
+
+      /* Sin nada que parar la base no da error: devuelve una fila vacía. O ya
+         estaba parado -otra pestaña, el movil- o no ha dejado; se vuelve a leer
+         para decir cuál, y para que la cuenta cuadre. */
+      if (!data?.id) {
+        const sigue = await leer()
+        if (sigue === null) {
+          setEnMarcha(null)
+          avisar("El cronómetro ya estaba parado.")
+        } else {
+          if (sigue) setEnMarcha(sigue)
+          avisar("No se ha podido parar el cronómetro.", undefined, "mal")
+        }
+        return null
+      }
+
+      setEnMarcha(null)
+      return data as Entrada
     } catch (err) {
       avisar(mensajeError(err), undefined, "mal")
       return null
     } finally {
       setCargando(false)
     }
-  }, [router, avisar])
+  }, [espacioId, leer, router, avisar])
 
   /* Nada de preguntar antes: se descarta y se avisa con un Deshacer, que es
      mas rapido de usar y ademas perdona el error de verdad. */

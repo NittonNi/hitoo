@@ -11,8 +11,8 @@ export function mensajeError(error: unknown): string {
 
   // Postgres
   if (code === "23505") {
-    if (raw.includes("one_running_per_user")) {
-      return "Ya tienes un cronómetro en marcha."
+    if (raw.includes("one_running_per_workspace")) {
+      return "Ya tienes un cronómetro en marcha en este espacio."
     }
     if (raw.includes("projects_name_unique")) return "Ya existe un proyecto con ese nombre."
     if (raw.includes("tasks_name_per_project")) return "Ese proyecto ya tiene una tarea con ese nombre."
@@ -25,6 +25,10 @@ export function mensajeError(error: unknown): string {
       return "Alguien más acaba de guardar este resultado, recarga y vuelve a intentarlo."
     }
     return "Ese registro ya existe."
+  }
+  // Lo lanza stop_timer cuando el espacio pide proyecto
+  if (raw.includes("Elige un proyecto antes de parar")) {
+    return "Elige un proyecto antes de parar el cronómetro."
   }
   if (code === "23514" && raw.includes("end_after_start")) {
     return "La hora de fin tiene que ser posterior a la de inicio."

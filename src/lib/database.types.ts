@@ -1378,6 +1378,7 @@ export type Database = {
           p_description?: string
           p_edition_id?: string
           p_project_id?: string
+          p_solo_este_espacio?: boolean
           p_tag_ids?: string[]
           p_task_id?: string
           p_workspace_id: string
@@ -1410,7 +1411,7 @@ export type Database = {
         }
       }
       stop_timer: {
-        Args: never
+        Args: { p_workspace_id?: string }
         Returns: {
           billable: boolean
           created_at: string

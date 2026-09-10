@@ -2,7 +2,11 @@ import { Suspense } from "react"
 
 import { getSesion } from "@/lib/sesion"
 import { createClient } from "@/lib/supabase/server"
-import { aEntradaEnMarcha, SELECT_EN_MARCHA } from "@/lib/cronometro"
+import {
+  aEntradaEnMarcha,
+  enMarchaEnOtrosEspacios,
+  SELECT_EN_MARCHA,
+} from "@/lib/cronometro"
 import { ProveedorSesion } from "@/components/proveedor-sesion"
 import { ProveedorCronometro } from "@/components/proveedor-cronometro"
 import { Armazon } from "@/components/armazon"
@@ -12,6 +16,7 @@ import { EsqueletoMarco } from "@/components/esqueleto-marco"
 import { veTodo } from "@/lib/roles"
 import { getSuscripcion } from "@/lib/suscripcion"
 import { AvisoCuota } from "@/components/aviso-cuota"
+import { AvisoOlvido } from "@/components/aviso-olvido"
 
 /**
  * getSesion() usa cookies() (dato "runtime") y aquí además se consulta la
@@ -44,23 +49,40 @@ async function MarcoSesion({ children }: { children: React.ReactNode }) {
   const sesion = await getSesion()
   const supabase = await createClient()
 
-  // El cronómetro es único por persona, pero solo se muestra si corre aquí
-  const { data } = await supabase
-    .from("time_entries")
-    .select(SELECT_EN_MARCHA)
-    .eq("user_id", sesion.perfil.id)
-    .eq("workspace_id", sesion.espacio.id)
-    .is("end_at", null)
-    .maybeSingle()
+  /* Uno en marcha por espacio. Se piden todos los tuyos de una vez: el de este
+     espacio es el cronómetro, y los de los otros solo sirven para avisar si
+     alguno lleva demasiado (AvisoOlvido). La cuota sale a la vez, no detrás. */
+  const [{ data: enMarcha }, suscripcion] = await Promise.all([
+    supabase
+      .from("time_entries")
+      .select(SELECT_EN_MARCHA)
+      .eq("user_id", sesion.perfil.id)
+      .is("end_at", null),
+    getSuscripcion(sesion.espacio.id),
+  ])
+  const aqui = enMarcha?.find((e) => e.workspace_id === sesion.espacio.id)
 
   return (
     <ProveedorSesion sesion={sesion}>
       {/* Por fuera de esto sigue estando ProveedorAvisos (en LayoutApp): así
           el propio cronómetro puede avisar cuando algo le sale mal, en vez
-          de sacar un alert */}
-      <ProveedorCronometro espacioId={sesion.espacio.id} inicial={aEntradaEnMarcha(data)}>
+          de sacar un alert.
+
+          El key es el espacio. El layout no se desmonta al cambiar de espacio
+          y React conserva el estado de lo que cuelga de él, así que sin key el
+          cronómetro seguía contando el del espacio anterior, y la barra
+          guardaba el proyecto a medio elegir de allí. Con él, lo de un espacio
+          nace de nuevo en el otro. */}
+      <ProveedorCronometro
+        key={sesion.espacio.id}
+        espacioId={sesion.espacio.id}
+        inicial={aEntradaEnMarcha(aqui)}
+      >
         <Armazon>
-          <AvisoCuota suscripcion={await getSuscripcion(sesion.espacio.id)} rol={sesion.rol} />
+          <AvisoOlvido
+            fuera={enMarchaEnOtrosEspacios(enMarcha, sesion.espacios, sesion.espacio.id)}
+          />
+          <AvisoCuota suscripcion={suscripcion} rol={sesion.rol} />
           {children}
         </Armazon>
         <GuiaInicial perfilId={sesion.perfil.id} esGestor={veTodo(sesion.rol)} />
