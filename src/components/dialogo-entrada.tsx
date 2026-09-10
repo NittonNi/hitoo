@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import * as Dialog from "@radix-ui/react-dialog"
-import { Euro, Loader2, Trash2, X } from "lucide-react"
+import { Check, Euro, Loader2, Trash2, X } from "lucide-react"
 
 import { createClient } from "@/lib/supabase/client"
 import { mensajeError } from "@/lib/errores"
@@ -40,6 +40,13 @@ export function DialogoEntrada({
   const { perfil, espacio } = useSesion()
   // A quien mas le cuentan estas horas: se les propone al guardar
   const [compartidos, setCompartidos] = useState<string[]>([])
+  /* A quien propuso este rato no se le puede proponer de vuelta: ya lo tiene,
+     y si lo aceptara se quedaria con su propia hora dos veces. Mismo criterio
+     que en compartir-con.tsx. */
+  const vinoDeId = entrada.venida_de_id
+  const proponibles = miembros.filter(
+    (m) => m.id !== entrada.user_id && m.id !== vinoDeId,
+  )
   const [descripcion, setDescripcion] = useState(entrada.description)
   const [proyecto, setProyecto] = useState({
     project_id: entrada.project_id,
@@ -187,12 +194,14 @@ export function DialogoEntrada({
         if (errTags) throw errTags
       }
 
-      if (compartidos.length > 0) {
+      // El selector ya no le deja elegir, pero por si llega por otro camino
+      const aQuienes = compartidos.filter((id) => id !== vinoDeId)
+      if (aQuienes.length > 0) {
         const { error: errCompartir } = await proponerHoras(supabase, {
           espacioId: entrada.workspace_id,
           entradaId: entrada.id,
           deQuien: perfil.id,
-          aQuienes: compartidos,
+          aQuienes,
           project_id: proyecto.project_id,
           edition_id: proyecto.edition_id,
           task_id: proyecto.task_id,
@@ -203,7 +212,7 @@ export function DialogoEntrada({
         })
         if (errCompartir) throw errCompartir
         avisar(
-          compartidos.length === 1
+          aQuienes.length === 1
             ? "Propuesta enviada. Hasta que la acepte no se le apunta nada."
             : "Propuestas enviadas. Hasta que las acepten no se les apunta nada.",
         )
@@ -354,11 +363,30 @@ export function DialogoEntrada({
             <span className="label">También cuenta para</span>
             {miembros.length > 0 ? (
               <>
-                <SelectorPersonas
-                  miembros={miembros.filter((m) => m.id !== entrada.user_id)}
-                  seleccionadas={compartidos}
-                  onChange={setCompartidos}
-                />
+                {/* Quien la propuso sale marcado y quieto, fuera del selector:
+                    ahi no se le puede elegir, ni con "Todo el equipo". */}
+                {entrada.venida_de && (
+                  <p className="mb-1.5 flex items-center gap-2 px-3 text-sm opacity-60">
+                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-[3px] border border-ink bg-ink">
+                      <Check className="h-3 w-3 text-[color:var(--accent-fg)]" />
+                    </span>
+                    <span className="min-w-0 truncate">{entrada.venida_de}</span>
+                    <span className="shrink-0 text-[0.6875rem] text-muted">
+                      {entrada.user_id === perfil.id
+                        ? "te la propuso"
+                        : "se la propuso"}
+                    </span>
+                  </p>
+                )}
+                {/* Si no queda nadie más, el selector sobra (y su texto de
+                    "cuando haya más gente" seria falso) */}
+                {(proponibles.length > 0 || !entrada.venida_de) && (
+                  <SelectorPersonas
+                    miembros={proponibles}
+                    seleccionadas={compartidos}
+                    onChange={setCompartidos}
+                  />
+                )}
                 {compartidos.length > 0 && (
                   <p className="mt-1.5 text-xs text-muted">
                     Al guardar les llegará como propuesta: hasta que la acepten

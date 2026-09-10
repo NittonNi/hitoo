@@ -115,6 +115,7 @@ function propuestaComoEntrada(p: Propuesta): EntradaVista {
     tags: [],
     compartida_con: [],
     venida_de: null,
+    venida_de_id: null,
     amount: null,
   }
 }
@@ -152,6 +153,7 @@ function eventoGoogleComoEntrada(e: EventoGoogle): EntradaVista {
     tags: [],
     compartida_con: [],
     venida_de: null,
+    venida_de_id: null,
     amount: null,
   }
 }

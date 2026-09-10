@@ -75,6 +75,8 @@ export type EntradaVista = {
    * uno de los dos lo cambia deja de ser el mismo rato y esto se queda vacio.
    */
   venida_de: string | null
+  /** Su id: a quien te propuso un rato no se le puede proponer de vuelta. */
+  venida_de_id: string | null
   amount: number | null
 }
 

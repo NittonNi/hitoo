@@ -1175,6 +1175,7 @@ export type Database = {
           user_id: string | null
           user_name: string | null
           venida_de: string | null
+          venida_de_id: string | null
           workspace_id: string | null
         }
         Relationships: [

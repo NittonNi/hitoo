@@ -43,6 +43,11 @@ export function CompartirCon({
   const vinoDe = entrada.venida_de
   // Con quién se puede compartir: todo el equipo menos la persona de la hora
   const otros = miembros.filter((m) => m.id !== entrada.user_id)
+  /* ...y menos quien te la propuso: ya tiene este rato, y si se lo devuelves y
+     lo acepta se queda con su propia hora dos veces, y así en bucle. Sale en
+     la lista, marcado y quieto, pero no se le puede proponer. */
+  const vinoDeId = entrada.venida_de_id
+  const proponibles = otros.filter((m) => m.id !== vinoDeId)
 
   // Mismo texto para el title del ratón y el aria-label del lector de pantalla
   const tituloCompartir = vinoDe
@@ -69,6 +74,7 @@ export function CompartirCon({
   }
 
   async function alternar(id: string) {
+    if (id === vinoDeId) return // aunque se fuerce el clic: no se le devuelve
     const ahora = estadoDe(id)
     if (ahora === "aceptada") return // ya es hora suya: no se toca
 
@@ -117,7 +123,7 @@ export function CompartirCon({
   }
 
   async function todoElEquipo() {
-    const faltan = otros.filter((m) => estadoDe(m.id) === null)
+    const faltan = proponibles.filter((m) => estadoDe(m.id) === null)
     if (faltan.length === 0) return
 
     setOcupado(true)
@@ -216,8 +222,10 @@ export function CompartirCon({
           {propuestas !== null &&
             otros.map((miembro) => {
               const estado = estadoDe(miembro.id)
-              const puesta = estado === "pendiente" || estado === "aceptada"
-              const cerrada = estado === "aceptada"
+              const laPropuso = miembro.id === vinoDeId
+              const puesta =
+                laPropuso || estado === "pendiente" || estado === "aceptada"
+              const cerrada = laPropuso || estado === "aceptada"
               return (
                 <button
                   key={miembro.id}
@@ -225,7 +233,7 @@ export function CompartirCon({
                   disabled={ocupado || cerrada}
                   onClick={() => void alternar(miembro.id)}
                   title={
-                    cerrada
+                    estado === "aceptada" && !laPropuso
                       ? "Ya la aceptó: esas horas son suyas y las borra él"
                       : undefined
                   }
@@ -244,21 +252,25 @@ export function CompartirCon({
                   <span className="min-w-0 flex-1 truncate">
                     {miembro.full_name}
                   </span>
-                  {estado === "pendiente" && (
+                  {laPropuso ? (
+                    <span className="shrink-0 text-[0.6875rem] text-muted">
+                      te la propuso
+                    </span>
+                  ) : estado === "pendiente" ? (
                     <span className="shrink-0 text-[0.6875rem] text-live">
                       sin contestar
                     </span>
-                  )}
-                  {estado === "aceptada" && (
+                  ) : estado === "aceptada" ? (
                     <span className="shrink-0 text-[0.6875rem] text-billable">
                       aceptada
                     </span>
-                  )}
+                  ) : null}
                 </button>
               )
             })}
 
-          {propuestas !== null && otros.length > 1 && (
+          {/* Con una sola persona a quien proponer, su fila ya hace lo mismo */}
+          {propuestas !== null && proponibles.length > 1 && (
             <>
               <div className="my-1 h-px bg-line" />
               <button
