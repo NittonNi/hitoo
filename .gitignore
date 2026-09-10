@@ -47,3 +47,7 @@ next-env.d.ts
 
 # Capturas de las revisiones de interfaz (skill ui-review). Se regeneran.
 .ui-loop/
+
+# Claude Code: lo personal de cada uno (el resto de .claude/ si va al repo)
+CLAUDE.local.md
+.claude/settings.local.json
