@@ -1,5 +1,7 @@
 import { Suspense } from "react"
+import { cookies } from "next/headers"
 
+import { COOKIE_MENU_PLEGADO } from "@/lib/cookies"
 import { getSesion } from "@/lib/sesion"
 import { createClient } from "@/lib/supabase/server"
 import {
@@ -31,21 +33,32 @@ import { AvisoOlvido } from "@/components/aviso-olvido"
  * en MarcoSesion, con su propio limite de Suspense aquí: ProveedorAvisos no
  * depende de ningún dato y se queda fuera para que ni siquiera él espere.
  */
-export default function LayoutApp({
+export default async function LayoutApp({
   children,
 }: {
   children: React.ReactNode
 }) {
+  /* La cookie del menú plegado se lee aquí, por fuera del Suspense: es un dato
+     de la propia petición y no espera a nada. Así hasta el esqueleto sale con
+     la barra como se dejó, en vez de ancha un instante al recargar. */
+  const menuPlegado = (await cookies()).get(COOKIE_MENU_PLEGADO)?.value === "1"
+
   return (
     <ProveedorAvisos>
-      <Suspense fallback={<EsqueletoMarco />}>
-        <MarcoSesion>{children}</MarcoSesion>
+      <Suspense fallback={<EsqueletoMarco plegado={menuPlegado} />}>
+        <MarcoSesion menuPlegado={menuPlegado}>{children}</MarcoSesion>
       </Suspense>
     </ProveedorAvisos>
   )
 }
 
-async function MarcoSesion({ children }: { children: React.ReactNode }) {
+async function MarcoSesion({
+  menuPlegado,
+  children,
+}: {
+  menuPlegado: boolean
+  children: React.ReactNode
+}) {
   const sesion = await getSesion()
   const supabase = await createClient()
 
@@ -78,7 +91,7 @@ async function MarcoSesion({ children }: { children: React.ReactNode }) {
         espacioId={sesion.espacio.id}
         inicial={aEntradaEnMarcha(aqui)}
       >
-        <Armazon>
+        <Armazon plegadoInicial={menuPlegado}>
           <AvisoOlvido
             fuera={enMarchaEnOtrosEspacios(enMarcha, sesion.espacios, sesion.espacio.id)}
           />

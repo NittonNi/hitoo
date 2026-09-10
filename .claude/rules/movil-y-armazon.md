@@ -22,3 +22,4 @@ paths:
 - **Radios**: `--radio` y `--radio-sm` en `globals.css`. Los `rounded-lg`/`rounded-xl` sueltos no se enteran cuando cambian los tokens.
 - **El layout de `(app)` tiene su propio Suspense** (`MarcoSesion` con `EsqueletoMarco`): sin él, la navegación se quedaba parada y sin aviso mientras cargaba la sesión.
 - **Cambiar de espacio** (`cambio-espacio.ts`): en el mismo clic, el selector enseña el espacio elegido y el contenido pasa al esqueleto del cronómetro. La acción acaba en `redirect`, y en Next 16.3 eso llega como una promesa rechazada. Se reconoce con `unstable_rethrow`; si no, cada cambio que va bien avisaría de un error.
+- **Menú plegado** (cookie `menu-plegado`, en `cookies.ts`): lo lee `LayoutApp` por fuera del Suspense, para que el esqueleto y la barra salgan ya con su ancho (240 o 64 px). Plegado, cada fila mide lo mismo que desplegado (los rótulos quedan transparentes), así que los iconos no suben al plegar.

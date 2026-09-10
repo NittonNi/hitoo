@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useSyncExternalStore } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu"
@@ -10,6 +10,8 @@ import {
   CalendarDays,
   CalendarRange,
   Check,
+  ChevronLeft,
+  ChevronRight,
   ChevronsUpDown,
   Euro,
   FolderKanban,
@@ -32,6 +34,7 @@ import { useSesion } from "@/components/proveedor-sesion"
 import { useCronometro } from "@/components/proveedor-cronometro"
 import { SelectorTema } from "@/components/selector-tema"
 import { BarraTeclado } from "@/components/barra-teclado"
+import { COOKIE_MENU_PLEGADO } from "@/lib/cookies"
 import { formatDuration } from "@/lib/time"
 import { NOMBRE_ROL } from "@/lib/roles"
 import { RUTA_APP } from "@/lib/rutas"
@@ -118,10 +121,58 @@ function estaActivo(pathname: string, href: string, exacto?: boolean) {
   return exacto ? pathname === href : pathname === href || pathname.startsWith(`${href}/`)
 }
 
-export function Armazon({ children }: { children: React.ReactNode }) {
+/* ----------------------------------------------------------- menú plegado */
+
+/**
+ * Plegar la barra lateral se recuerda en una cookie y no en localStorage: así
+ * el servidor ya la pinta como se dejó y no se ve ancha un instante al cargar.
+ *
+ * Se lee con useSyncExternalStore, igual que «Llévame directo»: en el servidor
+ * y al hidratar vale lo que leyó el layout, y en cualquier otro montaje se lee
+ * la cookie misma, que es la que manda. El armazón se remonta entero al
+ * cambiar de espacio (por el key de ProveedorCronometro) y así no lo nota.
+ */
+const oyentesMenu = new Set<() => void>()
+
+function suscribirMenu(avisar: () => void) {
+  oyentesMenu.add(avisar)
+  return () => {
+    oyentesMenu.delete(avisar)
+  }
+}
+
+function leerMenuPlegado() {
+  return document.cookie
+    .split("; ")
+    .some((trozo) => trozo === `${COOKIE_MENU_PLEGADO}=1`)
+}
+
+function useMenuPlegado(inicial: boolean) {
+  const plegado = useSyncExternalStore(suscribirMenu, leerMenuPlegado, () => inicial)
+
+  function plegar(nuevo: boolean) {
+    /* Desplegada es lo normal: en vez de guardar un «no», se borra */
+    document.cookie = nuevo
+      ? `${COOKIE_MENU_PLEGADO}=1; path=/; max-age=31536000; samesite=lax`
+      : `${COOKIE_MENU_PLEGADO}=; path=/; max-age=0; samesite=lax`
+    for (const avisar of oyentesMenu) avisar()
+  }
+
+  return [plegado, plegar] as const
+}
+
+export function Armazon({
+  plegadoInicial,
+  children,
+}: {
+  /** Lo que dice la cookie del menú plegado, leída en el servidor. */
+  plegadoInicial: boolean
+  children: React.ReactNode
+}) {
   const grupos = useGrupos()
   const pathname = usePathname()
   const { avisar } = useAvisos()
+  const [plegado, plegar] = useMenuPlegado(plegadoInicial)
   /* Aqui y no en cada selector: hay dos -barra lateral y cabecera del movil- y
      los dos, y tambien el contenido, tienen que enterarse del mismo cambio */
   const cambio = useCambioEspacio(() =>
@@ -131,51 +182,114 @@ export function Armazon({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-dvh">
       {/* ------------------------------------------------ barra lateral */}
-      <aside className="no-print sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r border-line bg-surface-2/60 lg:flex">
-        <div className="p-2">
-          <SelectorEspacio cambio={cambio} />
-        </div>
-
-        <nav className="flex-1 space-y-4 overflow-y-auto p-2 pt-3">
-          {grupos.map((grupo) => (
-            <div key={grupo.titulo}>
-              <p className="rotulo px-3 pb-1">{grupo.titulo}</p>
-              <ul className="space-y-0.5">
-                {grupo.enlaces.map(({ href, etiqueta, icono: Icono, exacto }) => {
-                  const activo = estaActivo(pathname, href, exacto)
-                  return (
-                    <li key={href}>
-                      <Link
-                        href={href}
-                        aria-current={activo ? "page" : undefined}
-                        className={cn(
-                          "relative flex items-center gap-2.5 rounded-[var(--radio-sm)] py-2 pl-3 pr-2 text-sm font-medium transition",
-                          activo
-                            ? "bg-surface text-ink shadow-[0_1px_2px_rgb(0_0_0_/_0.06)]"
-                            : "text-ink-soft hover:bg-surface-3/60",
-                        )}
-                      >
-                        <Icono
-                          className={cn(
-                            "h-[18px] w-[18px] shrink-0",
-                            activo && "text-accent",
-                          )}
-                          strokeWidth={1.9}
-                        />
-                        {etiqueta}
-                      </Link>
-                    </li>
-                  )
-                })}
-              </ul>
+      {/* Lo que cambia de ancho, con su transición, es el <aside>; lo de dentro
+          toma el ancho final en el mismo clic y el aside lo va recortando. Al
+          desplegar, la barra destapa los rótulos ya en su sitio en vez de
+          apretarlos y cortarlos con puntos suspensivos, y al plegar los iconos
+          no viajan por la columna. Cada fila mide lo mismo en los dos estados,
+          para que tampoco salten en vertical. */}
+      <aside
+        className={cn(
+          "no-print sticky top-0 z-20 hidden h-dvh shrink-0 border-r border-line bg-surface-2/60 transition-[width] duration-200 ease-out motion-reduce:transition-none lg:block",
+          plegado ? "w-16" : "w-60",
+        )}
+      >
+        <div className="h-full overflow-hidden">
+          <div className={cn("flex h-full flex-col", plegado ? "w-16" : "w-60")}>
+            {/* Alto fijo: desplegado, el selector lleva dos líneas de texto y
+                plegado solo el cuadrado; sin él, todo lo de debajo subía un
+                poco al plegar */}
+            <div className="flex h-16 items-center p-2">
+              <SelectorEspacio cambio={cambio} plegado={plegado} />
             </div>
-          ))}
-        </nav>
 
-        <div className="space-y-2 p-2">
-          <CronometroLateral />
-          <MenuUsuario />
+            {/* Plegada, una barra de scroll de las de siempre -la de Windows-
+                se come un cuarto de la columna y descentra los iconos. La
+                rueda y el teclado siguen bajando igual. */}
+            <nav
+              className={cn(
+                "flex-1 space-y-4 overflow-y-auto p-2 pt-3",
+                plegado && "[scrollbar-width:none]",
+              )}
+            >
+              {grupos.map((grupo, i) => (
+                <div key={grupo.titulo}>
+                  {/* Plegada, el rótulo no se quita: se vuelve transparente y
+                      sigue ocupando su alto, para que los iconos no suban.
+                      Entre un grupo y otro, en su lugar, una raya a media
+                      distancia de los dos. */}
+                  <p
+                    aria-hidden={plegado || undefined}
+                    className={cn(
+                      "rotulo relative truncate px-3 pb-1",
+                      plegado && "text-transparent",
+                    )}
+                  >
+                    {grupo.titulo}
+                    {plegado && i > 0 && (
+                      <span className="absolute inset-x-3 top-0.5 h-px bg-line" />
+                    )}
+                  </p>
+                  <ul className="space-y-0.5">
+                    {grupo.enlaces.map(({ href, etiqueta, icono: Icono, exacto }) => {
+                      const activo = estaActivo(pathname, href, exacto)
+                      return (
+                        <li key={href}>
+                          <Link
+                            href={href}
+                            aria-current={activo ? "page" : undefined}
+                            aria-label={plegado ? etiqueta : undefined}
+                            title={plegado ? etiqueta : undefined}
+                            className={cn(
+                              "relative flex h-9 items-center gap-2.5 rounded-[var(--radio-sm)] text-sm font-medium transition",
+                              plegado ? "justify-center" : "pl-3 pr-2",
+                              activo
+                                ? "bg-surface text-ink shadow-[0_1px_2px_rgb(0_0_0_/_0.06)]"
+                                : "text-ink-soft hover:bg-surface-3/60",
+                            )}
+                          >
+                            <Icono
+                              className={cn(
+                                "h-[18px] w-[18px] shrink-0",
+                                activo && "text-accent",
+                              )}
+                              strokeWidth={1.9}
+                            />
+                            {!plegado && etiqueta}
+                          </Link>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </div>
+              ))}
+            </nav>
+
+            <div className="space-y-2 p-2">
+              <CronometroLateral plegado={plegado} />
+              <MenuUsuario plegado={plegado} />
+            </div>
+          </div>
         </div>
+
+        {/* La pestaña del borde, siempre a la vista: la flecha apunta hacia
+            donde se va a mover la barra. Va fuera del recorte para poder
+            asomar sobre el contenido, y a media altura de la pantalla, que la
+            barra ocupa entera. */}
+        <button
+          type="button"
+          onClick={() => plegar(!plegado)}
+          aria-expanded={!plegado}
+          aria-label={plegado ? "Desplegar el menú" : "Plegar el menú"}
+          title={plegado ? "Desplegar el menú" : "Plegar el menú"}
+          className="btn absolute right-0 top-1/2 h-6 w-6 translate-x-1/2 -translate-y-1/2 rounded-full p-0 text-ink-soft"
+        >
+          {plegado ? (
+            <ChevronRight className="h-3.5 w-3.5" />
+          ) : (
+            <ChevronLeft className="h-3.5 w-3.5" />
+          )}
+        </button>
       </aside>
 
       {/* ------------------------------------------------------ contenido */}
@@ -212,7 +326,14 @@ export function Armazon({ children }: { children: React.ReactNode }) {
 
 /* --------------------------------------------------------------- espacios */
 
-function SelectorEspacio({ cambio }: { cambio: CambioEspacio }) {
+function SelectorEspacio({
+  cambio,
+  plegado = false,
+}: {
+  cambio: CambioEspacio
+  /** En la barra lateral plegada: solo el cuadrado de las iniciales. */
+  plegado?: boolean
+}) {
   const { espacio: activo, espacios } = useSesion()
   /* El de la sesion no cambia hasta que vuelve el servidor: mientras tanto se
      enseña el elegido, que es lo que se acaba de pedir */
@@ -236,21 +357,35 @@ function SelectorEspacio({ cambio }: { cambio: CambioEspacio }) {
 
   return (
     <DropdownMenu.Root>
-      <DropdownMenu.Trigger className="flex w-full items-center gap-2.5 rounded-[var(--radio-sm)] p-1.5 text-left transition hover:bg-surface-3/60">
+      <DropdownMenu.Trigger
+        aria-label={plegado ? `Espacio: ${espacio.name}` : undefined}
+        title={plegado ? espacio.name : undefined}
+        className={cn(
+          "flex w-full items-center gap-2.5 rounded-[var(--radio-sm)] p-1.5 text-left transition hover:bg-surface-3/60",
+          plegado && "justify-center",
+        )}
+      >
         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radio-sm)] bg-accent text-[13px] font-semibold text-[color:var(--accent-fg)]">
           {espacio.name.slice(0, 2).toUpperCase()}
         </span>
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-semibold tracking-tight">
-            {espacio.name}
-          </span>
-          <span className="block truncate text-xs leading-tight text-muted">Espacio</span>
-        </span>
-        <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 text-muted" />
+        {!plegado && (
+          <>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-semibold tracking-tight">
+                {espacio.name}
+              </span>
+              <span className="block truncate text-xs leading-tight text-muted">Espacio</span>
+            </span>
+            <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 text-muted" />
+          </>
+        )}
       </DropdownMenu.Trigger>
 
       <DropdownMenu.Portal>
+        {/* Con la barra plegada, el menú sale hacia el contenido, al lado del
+            cuadrado, en vez de caer encima de la columna de iconos */}
         <DropdownMenu.Content
+          side={plegado ? "right" : "bottom"}
           align="start"
           sideOffset={6}
           className="z-50 w-64 overflow-hidden rounded-[var(--radio)] border border-line bg-surface p-1"
@@ -318,12 +453,44 @@ function useTituloCronometro() {
  * en la propia pantalla del cronómetro, donde la tarjeta de arriba ya es él:
  * verlo dos veces en la misma pantalla solo confunde.
  */
-function CronometroLateral() {
+function CronometroLateral({ plegado }: { plegado: boolean }) {
   const { enMarcha, segundos, parar, cargando } = useCronometro()
   const pathname = usePathname()
   useTituloCronometro()
 
   if (!enMarcha || pathname === RUTA_APP) return null
+
+  const que = enMarcha.description || enMarcha.proyecto?.name || "Sin descripción"
+  const botonParar = (
+    <button
+      type="button"
+      onClick={() => void parar()}
+      disabled={cargando}
+      aria-label="Parar el cronómetro"
+      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--radio-sm)] bg-live-fill text-white transition hover:brightness-110 disabled:opacity-50"
+    >
+      <Square className="h-3 w-3 fill-current" />
+    </button>
+  )
+
+  /* Plegada la barra, lo que se está haciendo no cabe: se quedan el tiempo,
+     que se sigue viendo correr, y el botón de parar, uno encima del otro. La
+     descripción va en el title, de más. A 11 px para que h:mm:ss quepa entero
+     en la columna. */
+  if (plegado) {
+    return (
+      <div
+        title={que}
+        className="flex flex-col items-center gap-1.5 rounded-[var(--radio-sm)] border border-live-line bg-live-soft py-2"
+      >
+        <span aria-hidden className="latido h-[3px] w-6 rounded-full bg-live-fill" />
+        <p className="cifra text-[11px] font-semibold leading-none text-live">
+          {formatDuration(segundos)}
+        </p>
+        {botonParar}
+      </div>
+    )
+  }
 
   return (
     <div className="rounded-[var(--radio-sm)] border border-live-line bg-live-soft p-2">
@@ -333,19 +500,9 @@ function CronometroLateral() {
           <p className="cifra text-lg font-semibold leading-none text-live">
             {formatDuration(segundos)}
           </p>
-          <p className="mt-1 truncate text-xs text-ink-soft">
-            {enMarcha.description || enMarcha.proyecto?.name || "Sin descripción"}
-          </p>
+          <p className="mt-1 truncate text-xs text-ink-soft">{que}</p>
         </div>
-        <button
-          type="button"
-          onClick={() => void parar()}
-          disabled={cargando}
-          aria-label="Parar el cronómetro"
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--radio-sm)] bg-live-fill text-white transition hover:brightness-110 disabled:opacity-50"
-        >
-          <Square className="h-3 w-3 fill-current" />
-        </button>
+        {botonParar}
       </div>
     </div>
   )
@@ -409,7 +566,7 @@ function BarraInferior() {
 
 /* ---------------------------------------------------------------- usuario */
 
-function MenuUsuario() {
+function MenuUsuario({ plegado = false }: { plegado?: boolean }) {
   const { perfil, rol } = useSesion()
   const formSalirRef = useRef<HTMLFormElement>(null)
 
@@ -422,17 +579,27 @@ function MenuUsuario() {
 
   return (
     <DropdownMenu.Root>
-      <DropdownMenu.Trigger className="flex min-w-0 flex-1 items-center gap-2 rounded-[var(--radio-sm)] p-1.5 text-left transition hover:bg-surface-3/60">
+      <DropdownMenu.Trigger
+        aria-label={plegado ? perfil.full_name || "Tu cuenta" : undefined}
+        title={plegado ? perfil.full_name : undefined}
+        className={cn(
+          "flex min-w-0 flex-1 items-center gap-2 rounded-[var(--radio-sm)] p-1.5 text-left transition hover:bg-surface-3/60",
+          plegado && "justify-center",
+        )}
+      >
         <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-surface-3 text-[11px] font-semibold">
           {iniciales || <User className="h-3.5 w-3.5" />}
         </span>
-        <span className="hidden min-w-0 flex-1 truncate text-sm lg:block">
-          {perfil.full_name}
-        </span>
+        {!plegado && (
+          <span className="hidden min-w-0 flex-1 truncate text-sm lg:block">
+            {perfil.full_name}
+          </span>
+        )}
       </DropdownMenu.Trigger>
 
       <DropdownMenu.Portal>
         <DropdownMenu.Content
+          side={plegado ? "right" : "bottom"}
           align="end"
           sideOffset={6}
           className="z-50 w-60 overflow-hidden rounded-[var(--radio)] border border-line bg-surface p-1"

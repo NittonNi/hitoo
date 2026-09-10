@@ -17,10 +17,14 @@ import { BloquePulso, EsqueletoPagina } from "@/components/esqueleto-pagina"
  * es el menu en gris y el contenido en blanco -que es justo la queja del
  * 20-ago-2026-. Luego lo releva el esqueleto propio de la pagina.
  */
-export function EsqueletoMarco() {
+export function EsqueletoMarco({ plegado = false }: { plegado?: boolean }) {
   return (
     <div className="flex min-h-dvh">
-      <aside className="no-print sticky top-0 hidden h-dvh w-60 shrink-0 flex-col gap-4 border-r border-line bg-surface-2/60 p-2 lg:flex">
+      {/* Con el menú plegado, su ancho plegado: si no, al recargar se veía ancha
+          un instante y luego se estrechaba */}
+      <aside
+        className={`no-print sticky top-0 hidden h-dvh shrink-0 flex-col gap-4 border-r border-line bg-surface-2/60 p-2 lg:flex ${plegado ? "w-16" : "w-60"}`}
+      >
         <BloquePulso className="h-10 rounded-[var(--radio-sm)]" />
         <div className="flex-1 space-y-1.5 pt-1">
           {Array.from({ length: 5 }).map((_, i) => (

@@ -9,3 +9,9 @@
 
 /** "Llévame directo a mi espacio en vez de a la portada." */
 export const COOKIE_DIRECTO = "directo"
+
+/**
+ * "El menú de la izquierda, plegado en iconos." La lee el layout de (app) para
+ * que la barra salga del servidor ya estrecha y no se vea ancha un instante.
+ */
+export const COOKIE_MENU_PLEGADO = "menu-plegado"
