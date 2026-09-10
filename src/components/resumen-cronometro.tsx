@@ -16,6 +16,8 @@ export type Cifras = {
   hoy: number
   semana: number
   facturableSemana: number
+  /** En cuantos proyectos distintos cayeron esas horas facturables. */
+  proyectosFacturables: number
   mes: number
   diasConHoras: number
   objetivoDia: number | null
@@ -66,9 +68,11 @@ function valor(clave: Clave, c: Cifras): { valor: string; pie?: string; verde?: 
         valor: formatDurationShort(c.facturableSemana),
         verde: c.facturableSemana > 0,
         pie:
-          c.semana > 0
-            ? Math.round((c.facturableSemana / c.semana) * 100) + "% de la semana"
-            : undefined,
+          c.proyectosFacturables === 0
+            ? undefined
+            : c.proyectosFacturables === 1
+              ? "en 1 proyecto"
+              : "en " + c.proyectosFacturables + " proyectos",
       }
     case "mes":
       return { valor: formatDurationShort(c.mes) }

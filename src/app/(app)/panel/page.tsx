@@ -43,9 +43,11 @@ export default async function PaginaCronometro() {
     .reduce((s, e) => s + (e.duration_seconds ?? 0), 0)
   const semana = cerradas.filter((e) => e.local_date >= lunes)
   const segsSemana = semana.reduce((s, e) => s + (e.duration_seconds ?? 0), 0)
-  const segsFacturables = semana
-    .filter((e) => e.billable)
-    .reduce((s, e) => s + (e.duration_seconds ?? 0), 0)
+  const facturables = semana.filter((e) => e.billable)
+  const segsFacturables = facturables.reduce((s, e) => s + (e.duration_seconds ?? 0), 0)
+  const proyectosFacturables = new Set(
+    facturables.flatMap((e) => (e.project_id ? [e.project_id] : [])),
+  ).size
   const segsMes = cerradas
     .filter((e) => e.local_date >= inicioMes)
     .reduce((s, e) => s + (e.duration_seconds ?? 0), 0)
@@ -79,6 +81,7 @@ export default async function PaginaCronometro() {
           hoy: segsHoy,
           semana: segsSemana,
           facturableSemana: segsFacturables,
+          proyectosFacturables,
           mes: segsMes,
           diasConHoras,
           objetivoDia: espacio.goal_daily_minutes,
