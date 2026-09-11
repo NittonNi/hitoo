@@ -1,4 +1,5 @@
 import Link from "next/link"
+import { cookies } from "next/headers"
 
 import { getSesion } from "@/lib/sesion"
 import { veTodo } from "@/lib/roles"
@@ -8,10 +9,13 @@ import {
   cargarMiembros,
   cargarPropuestas,
 } from "@/lib/datos"
+import { AvisoSemana } from "@/components/aviso-semana"
 import { BarraCronometro } from "@/components/barra-cronometro"
 import { ListaEntradas } from "@/components/lista-entradas"
 import { ResumenCronometro } from "@/components/resumen-cronometro"
 import { PropuestasPendientes } from "@/components/propuestas-pendientes"
+import { COOKIE_SEMANA_OMITIDA } from "@/lib/cookies"
+import { estaOmitida } from "@/lib/semana-omitida"
 import { addDays, fromDateKey, startOfWeek, toDateKey, todayKey } from "@/lib/time"
 
 export const metadata = { title: "Cronómetro" }
@@ -65,6 +69,12 @@ export default async function PaginaCronometro() {
     if (dia.getDay() === 0 || dia.getDay() === 6) continue
     if (!conHoras.has(clave)) vacios.push(clave)
   }
+  // Si esta semana ya se omitió en este espacio, el servidor ni lo pinta
+  const omitida = estaOmitida(
+    (await cookies()).get(COOKIE_SEMANA_OMITIDA)?.value,
+    lunes,
+    espacio.id,
+  )
 
   return (
     <div className="space-y-5">
@@ -89,17 +99,8 @@ export default async function PaginaCronometro() {
         }}
       />
 
-      {vacios.length > 0 && (
-        <div className="card flex flex-wrap items-center gap-3 border-live-line bg-live-soft p-3">
-          <p className="min-w-0 flex-1 text-sm text-ink-soft">
-            <span className="font-medium text-live">Sin apuntar:</span>{" "}
-            {vacios.map((d) => nombreDia(d)).join(", ")}
-            {vacios.length === 1 ? " sigue a cero." : " siguen a cero."}
-          </p>
-          <Link href="/semana" className="btn btn-ghost shrink-0 text-live">
-            Rellenar la semana
-          </Link>
-        </div>
+      {vacios.length > 0 && !omitida && (
+        <AvisoSemana dias={vacios.map(nombreDia)} lunes={lunes} espacioId={espacio.id} />
       )}
 
       {catalogo.proyectos.length === 0 && (

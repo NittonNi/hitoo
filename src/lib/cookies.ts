@@ -15,3 +15,9 @@ export const COOKIE_DIRECTO = "directo"
  * que la barra salga del servidor ya estrecha y no se vea ancha un instante.
  */
 export const COOKIE_MENU_PLEGADO = "menu-plegado"
+
+/**
+ * "El aviso de días sin apuntar, omitido esta semana en estos espacios." La lee
+ * la página del cronómetro para no pintarlo; el formato está en semana-omitida.ts.
+ */
+export const COOKIE_SEMANA_OMITIDA = "semana-omitida"
