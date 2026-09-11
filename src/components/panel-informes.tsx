@@ -2,15 +2,7 @@
 
 import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts"
+import dynamic from "next/dynamic"
 import { Download, FileSpreadsheet, FileText, Printer } from "lucide-react"
 
 import { createClient } from "@/lib/supabase/client"
@@ -27,10 +19,24 @@ import {
   formatDurationShort,
   formatHoursDecimal,
   formatMoney,
-  fromDateKey,
 } from "@/lib/time"
 import type { Catalogo, EntradaVista, Miembro } from "@/lib/tipos"
 import { cn } from "@/lib/utils"
+
+/**
+ * recharts pesa varios cientos de KB: se carga solo en el navegador y solo
+ * cuando hace falta pintar el gráfico, en vez de ir en el primer JS de
+ * /informes (mismo patrón que grafico-resumen-proyecto.tsx).
+ */
+const GraficoInformes = dynamic(
+  () => import("@/components/grafico-informes").then((mod) => mod.GraficoInformes),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-full w-full animate-pulse rounded-[var(--radio-sm)] bg-surface-2" />
+    ),
+  },
+)
 
 type Facturable = "todo" | "si" | "no"
 
@@ -523,47 +529,7 @@ export function PanelInformes({
       <section className="card min-w-0 p-4">
         <h2 className="mb-3 text-sm font-semibold">Horas por día</h2>
         <div className="h-64 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={serie} margin={{ top: 4, right: 8, bottom: 4, left: -20 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-              <XAxis
-                dataKey="dia"
-                tickFormatter={(dia: string) =>
-                  fromDateKey(dia).toLocaleDateString("es-ES", {
-                    day: "numeric",
-                    month: "short",
-                  })
-                }
-                tick={{ fontSize: 11, fill: "var(--muted)" }}
-                tickLine={false}
-                axisLine={{ stroke: "var(--border)" }}
-                minTickGap={16}
-              />
-              <YAxis
-                tick={{ fontSize: 11, fill: "var(--muted)" }}
-                tickLine={false}
-                axisLine={false}
-                width={44}
-              />
-              <Tooltip
-                cursor={{ fill: "var(--surface-2)" }}
-                contentStyle={{
-                  background: "var(--surface)",
-                  border: "1px solid var(--border)",
-                  borderRadius: "0.5rem",
-                  fontSize: "0.8rem",
-                  color: "var(--text)",
-                }}
-                labelFormatter={(dia) => formatDateShort(String(dia))}
-                formatter={(valor, nombre) => [
-                  `${Number(valor ?? 0).toLocaleString("es-ES")} h`,
-                  nombre === "facturables" ? "Facturables" : "Horas",
-                ]}
-              />
-              <Bar dataKey="horas" fill="var(--accent)" radius={[3, 3, 0, 0]} />
-              <Bar dataKey="facturables" fill="var(--billable)" radius={[3, 3, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          <GraficoInformes serie={serie} />
         </div>
       </section>
 

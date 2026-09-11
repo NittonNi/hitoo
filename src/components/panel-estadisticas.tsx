@@ -1,24 +1,11 @@
 "use client"
 
 import { Fragment, useEffect, useMemo, useState } from "react"
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Line,
-  ComposedChart,
-  Pie,
-  PieChart,
-  ReferenceLine,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts"
+import dynamic from "next/dynamic"
 import { Maximize2, Minimize2, TrendingDown, TrendingUp, X } from "lucide-react"
 
 import { agrupar, totales, type Grupo } from "@/lib/informes"
+import { CajaTooltip } from "@/components/caja-tooltip"
 import { categoriasRaiz, formatObjetivo, ramas, SIN_CATEGORIA } from "@/lib/categorias"
 import { calcularAtribucion } from "@/lib/reparto"
 import {
@@ -31,7 +18,6 @@ import {
   mapaDeCalor,
   serie,
   unidadPara,
-  type Punto,
   type Rango,
   type Unidad,
 } from "@/lib/estadisticas"
@@ -130,6 +116,44 @@ const PALETA = [
 
 /** Con que dato se ha cruzado la pagina entera: un clic en cualquier grafica. */
 type Foco = { tipo: "area" | "proyecto" | "persona"; clave: string; etiqueta: string }
+
+/**
+ * Las cuatro gráficas de recharts, aparte y cargadas solo en el navegador:
+ * recharts pesa varios cientos de KB y no tiene sentido traerlo en el primer
+ * JS de /estadisticas si esta pagina va a tardar en pintarse de todas formas
+ * -mismo patrón que grafico-resumen-proyecto.tsx-.
+ */
+const HuecoGrafico = () => (
+  <div className="h-full w-full animate-pulse rounded-[var(--radio-sm)] bg-surface-2" />
+)
+const GraficoRitmoEstadisticas = dynamic(
+  () =>
+    import("@/components/grafico-ritmo-estadisticas").then(
+      (mod) => mod.GraficoRitmoEstadisticas,
+    ),
+  { ssr: false, loading: HuecoGrafico },
+)
+const GraficoAreaEstadisticas = dynamic(
+  () =>
+    import("@/components/grafico-area-estadisticas").then(
+      (mod) => mod.GraficoAreaEstadisticas,
+    ),
+  { ssr: false, loading: HuecoGrafico },
+)
+const GraficoPersonasEstadisticas = dynamic(
+  () =>
+    import("@/components/grafico-personas-estadisticas").then(
+      (mod) => mod.GraficoPersonasEstadisticas,
+    ),
+  { ssr: false, loading: HuecoGrafico },
+)
+const GraficoPorHoraEstadisticas = dynamic(
+  () =>
+    import("@/components/grafico-porhora-estadisticas").then(
+      (mod) => mod.GraficoPorHoraEstadisticas,
+    ),
+  { ssr: false, loading: HuecoGrafico },
+)
 
 export function PanelEstadisticas({
   entradas,
@@ -700,76 +724,11 @@ export function PanelEstadisticas({
         </div>
 
         <div className="h-64 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart
-              data={puntos}
-              margin={{ top: 4, right: 4, left: -18, bottom: 0 }}
-            >
-              <CartesianGrid strokeDasharray="2 4" vertical={false} stroke="var(--line)" />
-              <XAxis
-                dataKey="etiqueta"
-                tick={{ fontSize: 11, fill: "var(--muted)" }}
-                tickLine={false}
-                axisLine={{ stroke: "var(--line)" }}
-                interval="preserveStartEnd"
-                minTickGap={16}
-              />
-              <YAxis
-                tick={{ fontSize: 11, fill: "var(--muted)" }}
-                tickLine={false}
-                axisLine={false}
-                width={44}
-              />
-              <Tooltip
-                cursor={{ fill: "var(--surface-2)" }}
-                content={({ active, payload }) => {
-                  if (!active || !payload?.length) return null
-                  const punto = payload[0].payload as Punto
-                  const desglose = desglosePunto.get(punto.clave)
-                  return (
-                    <CajaTooltip
-                      titulo={`${punto.etiqueta} · ${formatDurationShort(punto.horas * 3600)}`}
-                      lineas={[
-                        {
-                          texto: `Se cobran: ${formatDurationShort(punto.cobrables * 3600)}`,
-                          tono: "billable",
-                        },
-                        ...(comparar && punto.antes !== undefined
-                          ? [{ texto: `Periodo anterior: ${formatDurationShort(punto.antes * 3600)}` }]
-                          : []),
-                      ]}
-                      proyectos={desglose?.proyectos}
-                      personas={desglose?.personas}
-                    />
-                  )
-                }}
-              />
-              <Bar
-                dataKey="cobrables"
-                stackId="h"
-                fill="var(--billable-fill)"
-                radius={[0, 0, 3, 3]}
-                maxBarSize={48}
-              />
-              <Bar
-                dataKey="resto"
-                stackId="h"
-                fill="var(--accent)"
-                radius={[3, 3, 0, 0]}
-                maxBarSize={48}
-              />
-              {comparar && (
-                <Line
-                  type="monotone"
-                  dataKey="antes"
-                  stroke="var(--muted)"
-                  strokeWidth={1.5}
-                  strokeDasharray="4 3"
-                  dot={false}
-                />
-              )}
-            </ComposedChart>
-          </ResponsiveContainer>
+          <GraficoRitmoEstadisticas
+            puntos={puntos}
+            comparar={comparar}
+            desglosePunto={desglosePunto}
+          />
         </div>
       </section>
 
@@ -784,55 +743,14 @@ export function PanelEstadisticas({
           ) : (
             <>
               <div className="h-48 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={porArea.map((g) => ({
-                        nombre: g.etiqueta,
-                        horas: Math.round((g.segundos / 3600) * 100) / 100,
-                      }))}
-                      dataKey="horas"
-                      nameKey="nombre"
-                      innerRadius="58%"
-                      outerRadius="88%"
-                      paddingAngle={2}
-                      strokeWidth={0}
-                    >
-                      {porArea.map((g) => (
-                        <Cell
-                          key={g.clave}
-                          fill={coloresArea.get(g.clave) ?? PALETA[0]}
-                          onClick={() =>
-                            alternarFoco({ tipo: "area", clave: g.clave, etiqueta: g.etiqueta })
-                          }
-                          cursor="pointer"
-                          opacity={
-                            foco && foco.tipo === "area" && foco.clave !== g.clave ? 0.35 : 1
-                          }
-                        />
-                      ))}
-                    </Pie>
-                    {/* offset alto: que no se pegue al donut y tape la porcion
-                        de al lado, que es justo lo que impedia seguir clicando */}
-                    <Tooltip
-                      offset={28}
-                      content={({ active, payload }) => {
-                        if (!active || !payload?.length) return null
-                        const nombre = payload[0].name as string
-                        const grupo = porArea.find((g) => g.etiqueta === nombre)
-                        if (!grupo) return null
-                        const desglose = desgloseArea.get(grupo.clave)
-                        return (
-                          <CajaTooltip
-                            titulo={`${grupo.etiqueta} · ${formatDurationShort(grupo.segundos)}`}
-                            proyectos={desglose?.proyectos}
-                            personas={desglose?.personas}
-                          />
-                        )
-                      }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
+                <GraficoAreaEstadisticas
+                  porArea={porArea}
+                  coloresArea={coloresArea}
+                  paleta={PALETA}
+                  foco={foco}
+                  onAlternarFoco={alternarFoco}
+                  desgloseArea={desgloseArea}
+                />
               </div>
 
               <ul className="mt-2 space-y-1">
@@ -899,99 +817,12 @@ export function PanelEstadisticas({
               <Vacio />
             ) : (
               <div style={{ height: Math.max(140, porPersona.length * 34) }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    layout="vertical"
-                    data={porPersona.map((g) => ({
-                      clave: g.clave,
-                      nombre: g.etiqueta,
-                      horas: Math.round((g.segundos / 3600) * 100) / 100,
-                      cobrables: Math.round((g.facturables / 3600) * 100) / 100,
-                    }))}
-                    margin={{ top: 0, right: 8, left: 0, bottom: 0 }}
-                  >
-                    <CartesianGrid
-                      strokeDasharray="2 4"
-                      horizontal={false}
-                      stroke="var(--line)"
-                    />
-                    <XAxis
-                      type="number"
-                      tick={{ fontSize: 11, fill: "var(--muted)" }}
-                      tickLine={false}
-                      axisLine={false}
-                    />
-                    <YAxis
-                      type="category"
-                      dataKey="nombre"
-                      width={110}
-                      tick={{ fontSize: 12, fill: "var(--ink)" }}
-                      tickLine={false}
-                      axisLine={false}
-                    />
-                    <Tooltip
-                      cursor={{ fill: "var(--surface-2)" }}
-                      content={({ active, payload }) => {
-                        if (!active || !payload?.length) return null
-                        const fila = payload[0].payload as { clave: string; nombre: string; horas: number; cobrables: number }
-                        const g = porPersona.find((p) => p.clave === fila.clave)
-                        if (!g) return null
-                        return (
-                          <CajaTooltip
-                            titulo={`${g.etiqueta} · ${formatDurationShort(g.segundos)}`}
-                            lineas={[
-                              {
-                                texto: `Se cobran: ${formatDurationShort(g.facturables)}`,
-                                tono: "billable",
-                              },
-                            ]}
-                            proyectos={desglosePersona.get(g.clave)}
-                          />
-                        )
-                      }}
-                    />
-                    <Bar
-                      dataKey="horas"
-                      fill="var(--accent)"
-                      radius={[0, 3, 3, 0]}
-                      cursor="pointer"
-                      onClick={(_, i) => {
-                        const g = porPersona[i]
-                        if (g) alternarFoco({ tipo: "persona", clave: g.clave, etiqueta: g.etiqueta })
-                      }}
-                    >
-                      {porPersona.map((g) => (
-                        <Cell
-                          key={g.clave}
-                          fill="var(--accent)"
-                          opacity={
-                            foco && foco.tipo === "persona" && foco.clave !== g.clave ? 0.35 : 1
-                          }
-                        />
-                      ))}
-                    </Bar>
-                    <Bar
-                      dataKey="cobrables"
-                      fill="var(--billable-fill)"
-                      radius={[0, 3, 3, 0]}
-                      cursor="pointer"
-                      onClick={(_, i) => {
-                        const g = porPersona[i]
-                        if (g) alternarFoco({ tipo: "persona", clave: g.clave, etiqueta: g.etiqueta })
-                      }}
-                    >
-                      {porPersona.map((g) => (
-                        <Cell
-                          key={g.clave}
-                          fill="var(--billable-fill)"
-                          opacity={
-                            foco && foco.tipo === "persona" && foco.clave !== g.clave ? 0.35 : 1
-                          }
-                        />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+                <GraficoPersonasEstadisticas
+                  porPersona={porPersona}
+                  foco={foco}
+                  onAlternarFoco={alternarFoco}
+                  desglosePersona={desglosePersona}
+                />
               </div>
             )}
           </section>
@@ -1129,69 +960,13 @@ export function PanelEstadisticas({
             {objetivoHora ? `. La línea es el objetivo: ${objetivoHora} €/h` : ""}.
           </p>
           <div className="h-56 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={porHoraProyectos} margin={{ top: 4, right: 4, left: -18, bottom: 0 }}>
-                <CartesianGrid
-                  strokeDasharray="2 4"
-                  vertical={false}
-                  stroke="var(--line)"
-                />
-                <XAxis
-                  dataKey="nombre"
-                  tick={{ fontSize: 11, fill: "var(--muted)" }}
-                  tickLine={false}
-                  axisLine={{ stroke: "var(--line)" }}
-                  interval={0}
-                  height={40}
-                />
-                <YAxis
-                  tick={{ fontSize: 11, fill: "var(--muted)" }}
-                  tickLine={false}
-                  axisLine={false}
-                  width={44}
-                />
-                <Tooltip
-                  cursor={{ fill: "var(--surface-2)" }}
-                  content={({ active, payload }) => {
-                    if (!active || !payload?.length) return null
-                    const g = payload[0].payload as (typeof porHoraProyectos)[number]
-                    return (
-                      <CajaTooltip
-                        titulo={`${g.nombre} · ${g.porHora} €/h`}
-                        personas={desgloseProyectoDinero.get(g.clave)}
-                      />
-                    )
-                  }}
-                />
-                {objetivoHora ? (
-                  <ReferenceLine
-                    y={objetivoHora}
-                    stroke="var(--ink)"
-                    strokeDasharray="4 3"
-                  />
-                ) : null}
-                <Bar
-                  dataKey="porHora"
-                  radius={[3, 3, 0, 0]}
-                  maxBarSize={56}
-                  cursor="pointer"
-                  onClick={(_, i) => {
-                    const g = porHoraProyectos[i]
-                    if (g) alternarFoco({ tipo: "proyecto", clave: g.clave, etiqueta: g.nombre })
-                  }}
-                >
-                  {porHoraProyectos.map((g) => (
-                    <Cell
-                      key={g.clave}
-                      fill={g.color}
-                      opacity={
-                        foco && foco.tipo === "proyecto" && foco.clave !== g.clave ? 0.35 : 1
-                      }
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <GraficoPorHoraEstadisticas
+              porHoraProyectos={porHoraProyectos}
+              objetivoHora={objetivoHora}
+              foco={foco}
+              onAlternarFoco={alternarFoco}
+              desgloseProyectoDinero={desgloseProyectoDinero}
+            />
           </div>
         </section>
       )}
@@ -1207,66 +982,8 @@ export function PanelEstadisticas({
 
 /* ------------------------------------------------------------------ piezas */
 
-const CAJA = {
-  background: "var(--surface)",
-  border: "1px solid var(--line)",
-  borderRadius: "var(--radio-sm)",
-  fontSize: 12,
-  color: "var(--ink)",
-} as const
-
 function Vacio() {
   return <p className="py-6 text-center text-sm text-muted">Nada en este periodo.</p>
-}
-
-/**
- * El hover de todas las graficas: un titulo, alguna cifra suelta si hace
- * falta, y el desglose por proyecto y por persona de lo que hay detras del
- * dato -no solo el numero, que es la queja que tenia Nicolas del donut-.
- */
-function CajaTooltip({
-  titulo,
-  lineas,
-  proyectos,
-  personas,
-}: {
-  titulo: string
-  lineas?: { texto: string; tono?: "billable" }[]
-  proyectos?: Grupo[]
-  personas?: Grupo[]
-}) {
-  return (
-    <div style={CAJA} className="pointer-events-none max-w-60 p-2.5">
-      <p className="text-sm font-medium">{titulo}</p>
-      {lineas?.map((l, i) => (
-        <p
-          key={i}
-          className={cn("mt-0.5 text-xs", l.tono === "billable" ? "text-billable" : "text-muted")}
-        >
-          {l.texto}
-        </p>
-      ))}
-      {proyectos && proyectos.length > 0 && (
-        <div className="mt-1.5 space-y-0.5 border-t border-line pt-1.5 text-xs">
-          {proyectos.slice(0, 4).map((p) => (
-            <div key={p.clave} className="flex justify-between gap-3">
-              <span className="truncate">{p.etiqueta}</span>
-              <span className="tabular shrink-0 text-muted">
-                {formatDurationShort(p.segundos)}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-      {personas && personas.length > 0 && (
-        <p className="mt-1.5 border-t border-line pt-1.5 text-xs text-muted">
-          {personas
-            .map((p) => `${p.etiqueta} ${formatDurationShort(p.segundos)}`)
-            .join(" · ")}
-        </p>
-      )}
-    </div>
-  )
 }
 
 /** Una fila de "cuanto llevamos" contra un objetivo, con su barra. */
