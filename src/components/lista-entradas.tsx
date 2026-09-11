@@ -24,13 +24,23 @@ import type { Catalogo, EntradaVista, Miembro } from "@/lib/tipos"
 import { cn } from "@/lib/utils"
 
 /**
- * Lo que junta dos ratos: el mismo dia y el mismo proyecto -con su edicion, que
- * TBCE 1 y TBCE 2 no son lo mismo-. La descripcion, la tarea, las etiquetas y
- * si se cobra pueden cambiar y siguen yendo juntos: se ven al abrir. Los dias
- * nunca se juntan; agrupar ocurre siempre dentro de un dia.
+ * Lo que junta dos ratos: el mismo dia, el mismo proyecto -con su edicion, que
+ * TBCE 1 y TBCE 2 no son lo mismo- y las mismas etiquetas, en cualquier orden.
+ * La descripcion, la tarea y si se cobra pueden cambiar y siguen yendo juntos:
+ * se ven al abrir. Con las etiquetas dentro de la clave, la fila del grupo las
+ * enseña y las cambia como las de un rato suelto; y cambiarlas desde ahi no
+ * parte el grupo, porque cambian todas a la vez. Los dias nunca se juntan;
+ * agrupar ocurre siempre dentro de un dia.
  */
 function claveGrupo(e: EntradaVista): string {
-  return [e.user_id, e.project_id ?? "-", e.edition_id ?? "-"].join("|")
+  /* JSON y no un join: un nombre de etiqueta puede llevar el separador. Se
+     ordenan porque cuentan como conjunto y la vista no promete un orden. */
+  return JSON.stringify([
+    e.user_id,
+    e.project_id,
+    e.edition_id,
+    [...e.tags].sort(),
+  ])
 }
 
 /** El valor que llevan todos, o null si cada uno lleva el suyo. */
@@ -174,10 +184,11 @@ function segundosDe(entradas: EntradaVista[]): number {
 }
 
 /**
- * Varios ratos del mismo proyecto en el mismo dia. La fila de arriba resume
- * -cuantos son y cuanto suman- y se edita: lo que se cambie ahi cae sobre todos
- * los ratos del grupo, tambien los de antes. Lo que no se puede es fundirlos:
- * cada rato sigue entero dentro, con su horario y su duracion.
+ * Varios ratos del mismo proyecto y con las mismas etiquetas en el mismo dia.
+ * La fila de arriba resume -cuantos son y cuanto suman- y se edita: lo que se
+ * cambie ahi cae sobre todos los ratos del grupo, tambien los de antes. Lo que
+ * no se puede es fundirlos: cada rato sigue entero dentro, con su horario y su
+ * duracion.
  */
 function FilaGrupo({
   grupo,
@@ -205,21 +216,17 @@ function FilaGrupo({
   // Con una cerrada, el grupo entero no se toca: se abre y se edita lo de dentro
   const bloqueado = entradas.some((e) => e.locked)
 
-  /* Lo que comparten todos se enseña tal cual; lo que no, se enseña junto, para
-     que se vea que ahi dentro hay cosas distintas antes de cambiarlas. */
+  /* La descripcion solo se enseña si es la de todos. Si no, la fila pide una,
+     igual que cuando no hay ninguna, y lo que se escriba cae en todos; la de
+     cada rato se ve al abrir. Ni juntas en la fila ni en un `title`, que
+     dependeria del raton. Una vacia cuenta como distinta: si un rato lleva
+     texto y otro no, ese texto no es de los dos. */
   const descripcion = comun(entradas.map((e) => e.description.trim()))
-  /* Las vacias cuentan como una descripcion mas: si un rato lleva texto y otro
-     no, no se puede enseñar solo el texto como si fuera de los dos. */
-  const descripciones = [
-    ...new Set(
-      entradas.map((e) => e.description.trim() || "sin descripción"),
-    ),
-  ]
   const tarea = comun(entradas.map((e) => e.task_name))
   const facturable = comun(entradas.map((e) => e.billable))
-  const mismasEtiquetas =
-    comun(entradas.map((e) => [...e.tags].sort().join("|"))) !== null
 
+  /* Todos llevan las mismas -es parte de lo que los junta-, asi que valen las
+     del primero. La vista las trae por nombre; el selector quiere ids. */
   const etiquetasPuestas = catalogo.etiquetas
     .filter((t) => primera.tags.includes(t.name))
     .map((t) => t.id)
@@ -289,56 +296,72 @@ function FilaGrupo({
     avisar(contar(cambiados), async () => {
       const cliente = createClient()
       for (const { id, ...valores } of antes) {
-        const { error: errVolver } = await cliente
+        const { data: vuelto, error: errVolver } = await cliente
           .from("time_entries")
           .update(valores)
           .eq("id", id)
+          .select("id")
         if (errVolver) throw new Error(mensajeError(errVolver))
+        if (!vuelto || vuelto.length === 0) {
+          throw new Error("la sesión puede haberse acabado. Recarga la página.")
+        }
       }
       router.refresh()
       return "Como estaban."
     })
   }
 
-  /** Las etiquetas viven en otra tabla: se quitan y se vuelven a poner. */
+  /**
+   * Las etiquetas viven en otra tabla: se quitan y se vuelven a poner. Como
+   * todos los ratos llevan las mismas, lo de antes es una sola lista.
+   */
   async function guardarEtiquetasEnTodas(ids: string[]) {
     setOcupado(true)
     setError(null)
-    const supabase = createClient()
-    const antes = entradas.map((e) => ({
-      id: e.id,
-      tagIds: catalogo.etiquetas
-        .filter((t) => e.tags.includes(t.name))
-        .map((t) => t.id),
-    }))
+    const antes = etiquetasPuestas
+    const idsRatos = entradas.map((e) => e.id)
+    const noGuardadas =
+      "No se han cambiado las etiquetas. Puede haberse acabado tu sesión: recarga la página."
 
-    const poner = async (reparto: { id: string; tagIds: string[] }[]) => {
-      await supabase
+    /* Borrar sin permiso tampoco da error: se cuenta lo que ha caido. `habia`
+       son las filas que tienen que irse, para no confundir «no llevaban
+       etiquetas» con «no ha dejado quitarlas». */
+    const poner = async (habia: number, tagIds: string[]) => {
+      const supabase = createClient()
+      const { data: quitadas, error: errQuitar } = await supabase
         .from("time_entry_tags")
         .delete()
-        .in(
-          "entry_id",
-          reparto.map((r) => r.id),
-        )
-      const filas = reparto.flatMap((r) =>
-        r.tagIds.map((tag_id) => ({ entry_id: r.id, tag_id })),
+        .in("entry_id", idsRatos)
+        .select("entry_id")
+      if (errQuitar) return mensajeError(errQuitar)
+      if ((quitadas?.length ?? 0) < habia) return noGuardadas
+
+      const filas = idsRatos.flatMap((entry_id) =>
+        tagIds.map((tag_id) => ({ entry_id, tag_id })),
       )
       if (filas.length === 0) return null
-      const { error: err } = await supabase.from("time_entry_tags").insert(filas)
-      return err ? mensajeError(err) : null
+      const { data: puestas, error: errPoner } = await supabase
+        .from("time_entry_tags")
+        .insert(filas)
+        .select("entry_id")
+      if (errPoner) return mensajeError(errPoner)
+      return (puestas?.length ?? 0) < filas.length ? noGuardadas : null
     }
 
-    const fallo = await poner(entradas.map((e) => ({ id: e.id, tagIds: ids })))
+    const fallo = await poner(primera.tags.length * cuantos, ids)
     setOcupado(false)
     setCampo(null)
+    router.refresh()
+    /* Tambien abajo a la derecha: si se quitaron y no se pusieron, el grupo
+       cambia de clave, la fila se monta de nuevo y el error de debajo se va. */
     if (fallo) {
       setError(fallo)
+      avisar(fallo, undefined, "mal")
       return
     }
-    router.refresh()
 
     avisar(`Etiquetas puestas en ${cuantos} ratos.`, async () => {
-      const fallo = await poner(antes)
+      const fallo = await poner(ids.length * cuantos, antes)
       if (fallo) throw new Error(fallo)
       router.refresh()
       return "Como estaban."
@@ -389,7 +412,7 @@ function FilaGrupo({
               autoFocus
               defaultValue={descripcion ?? ""}
               placeholder={
-                descripciones.length > 1
+                descripcion === null
                   ? `Poner la misma a los ${cuantos}`
                   : "¿En qué has trabajado?"
               }
@@ -420,23 +443,18 @@ function FilaGrupo({
               type="button"
               disabled={bloqueado}
               onClick={() => setCampo("descripcion")}
-              title={
-                descripciones.length > 1
-                  ? `Cada rato tiene la suya: ${descripciones.join(" · ")}`
-                  : undefined
-              }
               className={cn(pulsable, "block w-full truncate text-[0.9375rem]")}
             >
-              {descripcion === null ? (
-                <span className="text-ink-soft">
-                  {descripciones.join(" · ")}
-                </span>
-              ) : descripcion === "" ? (
+              {descripcion || (
                 <span className="text-muted">
-                  {bloqueado ? "Sin descripción" : "Añadir descripción"}
+                  {/* Cerrado no invita a escribir; y si llevan textos distintos,
+                      "Sin descripción" seria mentira */}
+                  {!bloqueado
+                    ? "Añadir descripción"
+                    : new Set(entradas.map((e) => e.description.trim())).size > 1
+                      ? "Varias descripciones"
+                      : "Sin descripción"}
                 </span>
-              ) : (
-                descripcion
               )}
             </button>
           )}
@@ -520,7 +538,7 @@ function FilaGrupo({
           {campo === "etiquetas" ? (
             <SelectorEtiquetas
               etiquetas={catalogo.etiquetas}
-              seleccionadas={mismasEtiquetas ? etiquetasPuestas : []}
+              seleccionadas={etiquetasPuestas}
               compacto
               autoAbrir
               onChange={(ids) => void guardarEtiquetasEnTodas(ids)}
@@ -537,29 +555,18 @@ function FilaGrupo({
                   {primera.user_name}
                 </span>
               )}
-              {!mismasEtiquetas ? (
-                <span
-                  className="chip shrink-0 text-muted"
-                  title="Cada rato lleva las suyas"
-                >
-                  varias
+              {primera.tags.length === 0 && !mostrarPersona && (
+                <Tag className="h-3.5 w-3.5 shrink-0 text-muted" aria-label="Etiquetas" />
+              )}
+              {primera.tags.slice(0, 1).map((t) => (
+                <span key={t} className="chip min-w-0 truncate">
+                  {t}
                 </span>
-              ) : (
-                <>
-                  {primera.tags.length === 0 && !mostrarPersona && (
-                    <Tag className="h-3.5 w-3.5 shrink-0 text-muted" aria-label="Etiquetas" />
-                  )}
-                  {primera.tags.slice(0, 1).map((t) => (
-                    <span key={t} className="chip min-w-0 truncate">
-                      {t}
-                    </span>
-                  ))}
-                  {primera.tags.length > 1 && (
-                    <span className="chip shrink-0">
-                      +{primera.tags.length - 1}
-                    </span>
-                  )}
-                </>
+              ))}
+              {primera.tags.length > 1 && (
+                <span className="chip shrink-0">
+                  +{primera.tags.length - 1}
+                </span>
               )}
             </button>
           )}
@@ -657,7 +664,7 @@ function FilaGrupo({
               task_id: tarea === null ? null : primera.task_id,
               description: descripcion ?? "",
               billable: facturable === true,
-              tagIds: mismasEtiquetas ? etiquetasPuestas : [],
+              tagIds: etiquetasPuestas,
             })
           }
           /* Naranja, que en esta casa es el color de lo que corre: el play es lo
