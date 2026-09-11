@@ -461,11 +461,17 @@ export function RejillaCalendario({
       final.tipo === "mover" ? "Hora movida." : "Hora actualizada.",
       antes
         ? async () => {
-            const { error: errVolver } = await createClient()
+            // Mismo cuidado que al guardar: sin `.select()`, una hora bloqueada
+            // o una sesion caducada devolverian "todo bien" sin deshacer nada.
+            const { data: vuelto, error: errVolver } = await createClient()
               .from("time_entries")
               .update({ start_at: antes.start_at, end_at: antes.end_at })
               .eq("id", final.id)
+              .select("id")
             if (errVolver) throw new Error(mensajeError(errVolver))
+            if (!vuelto || vuelto.length === 0) {
+              throw new Error("la sesión puede haberse acabado. Recarga la página.")
+            }
             router.refresh()
             return "Como estaba."
           }

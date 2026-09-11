@@ -223,6 +223,9 @@ function FilaGrupo({
      texto y otro no, ese texto no es de los dos. */
   const descripcion = comun(entradas.map((e) => e.description.trim()))
   const tarea = comun(entradas.map((e) => e.task_name))
+  // `tarea` tambien sale null cuando ninguno lleva tarea: ahi no hay nada que
+  // decir, a diferencia de cuando cada uno lleva la suya.
+  const algunaTarea = entradas.some((e) => e.task_name)
   const facturable = comun(entradas.map((e) => e.billable))
 
   /* Todos llevan las mismas -es parte de lo que los junta-, asi que valen las
@@ -517,9 +520,9 @@ function FilaGrupo({
                     )}
                     {tarea ? (
                       <span className="text-muted"> · {tarea}</span>
-                    ) : (
+                    ) : algunaTarea ? (
                       <span className="text-muted"> · varias tareas</span>
-                    )}
+                    ) : null}
                   </span>
                 </>
               ) : (
