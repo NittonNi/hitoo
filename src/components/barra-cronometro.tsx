@@ -2,9 +2,21 @@
 
 import { useEffect, useRef, useState } from "react"
 import * as Popover from "@radix-ui/react-popover"
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Euro, ListPlus, Loader2, Play, Square, Timer, Trash2 } from "lucide-react"
+import {
+  Euro,
+  ListPlus,
+  Loader2,
+  MoreHorizontal,
+  Pause,
+  Play,
+  Square,
+  Timer,
+  Trash2,
+  X,
+} from "lucide-react"
 
 import { createClient } from "@/lib/supabase/client"
 import { mensajeError } from "@/lib/errores"
@@ -39,6 +51,19 @@ import { cn } from "@/lib/utils"
 
 type Modo = "cronometro" | "manual"
 
+/** Compara dos borradores campo a campo, para no reponer uno igual que ya está. */
+function igualBorrador(a: BorradorEntrada, b: BorradorEntrada): boolean {
+  return (
+    a.project_id === b.project_id &&
+    a.edition_id === b.edition_id &&
+    a.task_id === b.task_id &&
+    a.description === b.description &&
+    a.billable === b.billable &&
+    a.tagIds.length === b.tagIds.length &&
+    a.tagIds.every((id, i) => id === b.tagIds[i])
+  )
+}
+
 export function BarraCronometro({
   catalogo,
   miembros = [],
@@ -50,15 +75,40 @@ export function BarraCronometro({
   const router = useRouter()
   const { avisar } = useAvisos()
   const { perfil, espacio } = useSesion()
-  const { enMarcha, segundos, arrancar, parar, descartar, cargando, recargar } =
-    useCronometro()
+  const {
+    enMarcha,
+    segundos,
+    arrancar,
+    parar,
+    descartar,
+    cargando,
+    recargar,
+    pausa,
+    pausar,
+    quitarPausa,
+  } = useCronometro()
 
   const [modo, setModo] = useState<Modo>("cronometro")
   /* Si arranca un cronometro -por ejemplo al pulsar Continuar en una hora de
      abajo- la barra vuelve sola al modo cronometro: si no, el tiempo correria
      escondido detras del formulario de apuntar a mano. */
   const modoActivo: Modo = enMarcha ? "cronometro" : modo
-  const [borrador, setBorrador] = useState<BorradorEntrada>(BORRADOR_VACIO)
+  /* Si se entra con una pausa ya puesta, el borrador nace con su
+     configuración en vez de vacío: así el primer pintado ya sale con el
+     proyecto y la descripción de la pausa, sin un parpadeo de campos vacíos
+     que se rellenan un instante después. */
+  const [borrador, setBorrador] = useState<BorradorEntrada>(() =>
+    pausa
+      ? {
+          project_id: pausa.project_id,
+          edition_id: pausa.edition_id,
+          task_id: pausa.task_id,
+          description: pausa.description,
+          billable: pausa.billable,
+          tagIds: pausa.tagIds,
+        }
+      : BORRADOR_VACIO,
+  )
   const [guardando, setGuardando] = useState(false)
   // Cuando el espacio no deja parar sin proyecto, hay que decirlo aquí mismo
   const [falta, setFalta] = useState<"proyecto" | "descripcion" | null>(null)
@@ -79,6 +129,36 @@ export function BarraCronometro({
     }
     idAnterior.current = idEnMarcha
   }, [idEnMarcha])
+
+  /* En pausa la barra edita un borrador normal (como el modo manual), solo
+     que arranca con lo que llevaba el rato pausado en vez de vacío: así
+     "Seguir" (que es arrancar con ese borrador) usa lo que se haya tocado
+     mientras tanto. Si la pausa se quita -aquí o en otro dispositivo- vuelve
+     a quedar vacío. */
+  const idPausa = pausa?.entryId ?? null
+  const idPausaAnterior = useRef(idPausa)
+  useEffect(() => {
+    if (idPausa !== idPausaAnterior.current) {
+      const objetivo: BorradorEntrada = pausa
+        ? {
+            project_id: pausa.project_id,
+            edition_id: pausa.edition_id,
+            task_id: pausa.task_id,
+            description: pausa.description,
+            billable: pausa.billable,
+            tagIds: pausa.tagIds,
+          }
+        : BORRADOR_VACIO
+      /* Si ya coincide -por ejemplo porque alPulsarPausar() lo sembró al
+         pulsar, con lo que la barra enseñaba en ese momento- no se toca: así
+         no se pisa una descripción recién tecleada y aún no guardada con la
+         que ya hubiera en el servidor al cerrar esa hora. Para una pausa que
+         llega de fuera -otro dispositivo, o el Deshacer de "Quitar la
+         pausa"- sí hay diferencia, y ahí es donde este efecto hace su trabajo. */
+      setBorrador((actual) => (igualBorrador(actual, objetivo) ? actual : objetivo))
+    }
+    idPausaAnterior.current = idPausa
+  }, [idPausa, pausa])
 
   // Mientras corre el cronómetro, la barra muestra y edita esa entrada
   const activo = enMarcha
@@ -183,17 +263,24 @@ export function BarraCronometro({
     if (!(await actualizarEnMarcha(hora))) setTecleado(null)
   }
 
-  /** Al cerrar una entrada se propone a quien se haya elegido arriba. */
-  async function compartirSiHaceFalta(entrada: {
-    id: string
-    project_id: string | null
-    edition_id: string | null
-    task_id: string | null
-    description: string
-    billable: boolean
-    start_at: string
-    end_at: string | null
-  }) {
+  /**
+   * Al cerrar una entrada se propone a quien se haya elegido arriba. Al
+   * pausar tambien, pero la eleccion se queda: el rato que siga despues es de
+   * la misma reunion, y se propondra al parar.
+   */
+  async function compartirSiHaceFalta(
+    entrada: {
+      id: string
+      project_id: string | null
+      edition_id: string | null
+      task_id: string | null
+      description: string
+      billable: boolean
+      start_at: string
+      end_at: string | null
+    },
+    { seguirEligiendo = false } = {},
+  ) {
     if (compartidos.length === 0 || !entrada.end_at) return
 
     const { error } = await proponerHoras(supabase.current, {
@@ -223,7 +310,7 @@ export function BarraCronometro({
         ? "Propuesta enviada. Hasta que la acepte no se le apunta nada."
         : "Propuestas enviadas. Hasta que las acepten no se les apunta nada.",
     )
-    setCompartidos([])
+    if (!seguirEligiendo) setCompartidos([])
   }
 
   /**
@@ -258,18 +345,25 @@ export function BarraCronometro({
     })
   }
 
+  /* Nada de horas huerfanas: si el espacio lo exige, no se para -ni se
+     pausa- sin proyecto ni sin decir en que se ha ido el rato. Devuelve si
+     falta algo, para que quien llama no siga. */
+  function faltaAlgo(): boolean {
+    if (!enMarcha) return false
+    if (espacio.require_project && !enMarcha.project_id) {
+      setFalta("proyecto")
+      return true
+    }
+    if (espacio.require_description && !enMarcha.description.trim()) {
+      setFalta("descripcion")
+      return true
+    }
+    return false
+  }
+
   async function alPulsarPrincipal() {
     if (enMarcha) {
-      /* Nada de horas huerfanas: si el espacio lo exige, no se para sin
-         proyecto ni sin decir en que se ha ido el rato. */
-      if (espacio.require_project && !enMarcha.project_id) {
-        setFalta("proyecto")
-        return
-      }
-      if (espacio.require_description && !enMarcha.description.trim()) {
-        setFalta("descripcion")
-        return
-      }
+      if (faltaAlgo()) return
       setAvisoCompartir(null)
       const cerrada = await parar()
       if (cerrada) {
@@ -287,11 +381,47 @@ export function BarraCronometro({
       return
     }
 
+    // Con la barra vacía arranca lo escrito; en pausa, arranca ese mismo
+    // borrador -ya sembrado con lo que llevaba el rato pausado- y así
+    // "Seguir" es, literalmente, este mismo botón.
     setAvisoCompartir(null)
     await arrancar({ ...borrador, description: descripcionLocal })
     setBorrador(BORRADOR_VACIO)
     setDescripcionLocal("")
   }
+
+  /**
+   * El aviso si falta algo es el mismo que al parar: no se pierde nada.
+   * El borrador se siembra ya mismo, con lo que la barra enseña ahora mismo
+   * -antes de que pausar() ponga enMarcha a null-: así el cambio de "lee de
+   * enMarcha" a "lee del borrador" pasa con el borrador ya listo, sin un
+   * instante de campos vacíos entre medias.
+   */
+  async function alPulsarPausar() {
+    if (faltaAlgo()) return
+    setBorrador({
+      project_id: activo.project_id,
+      edition_id: activo.edition_id,
+      task_id: activo.task_id,
+      description: descripcionLocal,
+      billable: activo.billable,
+      tagIds: activo.tagIds,
+    })
+    setAvisoCompartir(null)
+    const pausada = await pausar()
+    // El rato pausado ya es una hora cerrada: se propone igual que al parar
+    if (pausada) await compartirSiHaceFalta(pausada, { seguirEligiendo: true })
+  }
+
+  // Cuánto duró el rato que se dejó en pausa, para enseñarlo quieto
+  const segundosPausa = pausa
+    ? Math.max(
+        0,
+        Math.round(
+          (new Date(pausa.end_at).getTime() - new Date(pausa.start_at).getTime()) / 1000,
+        ),
+      )
+    : 0
 
   return (
     /* Cuando el cronometro corre, la tarjeta de arriba ES el cronometro: se
@@ -380,6 +510,18 @@ export function BarraCronometro({
                   segundos={segundos}
                   onCambiar={ajustarInicio}
                 />
+              ) : pausa ? (
+                /* En pausa nada va en naranja -ese color dice "corriendo
+                   ahora", y esto ya no corre-, así que el rato queda quieto
+                   y en gris, con el mismo formato de siempre: el propio
+                   número ya dice cuánto duró, y repetirlo con un "En pausa"
+                   al lado insistiría en lo que el botón de aquí al lado
+                   -que pasa a decir "Seguir"- ya cuenta. Para quien usa
+                   lector de pantalla va aparte, sin ocupar sitio. */
+                <span className="cifra w-28 text-right text-lg font-semibold tabular-nums text-muted">
+                  <span className="sr-only">En pausa, duración </span>
+                  {formatDuration(segundosPausa)}
+                </span>
               ) : (
                 <span className="cifra w-24 text-right text-lg font-semibold tabular-nums text-muted">
                   {formatDuration(0)}
@@ -393,9 +535,11 @@ export function BarraCronometro({
                   "flex h-9 w-9 items-center justify-center rounded-full text-white transition disabled:opacity-50",
                   enMarcha
                     ? "bg-danger hover:opacity-90"
-                    : "bg-running hover:opacity-90",
+                    : pausa
+                      ? "bg-accent hover:bg-accent-hover"
+                      : "bg-running hover:opacity-90",
                 )}
-                aria-label={enMarcha ? "Parar" : "Arrancar"}
+                aria-label={enMarcha ? "Parar" : pausa ? "Seguir" : "Arrancar"}
               >
                 {cargando ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -405,15 +549,53 @@ export function BarraCronometro({
                   <Play className="ml-0.5 h-4 w-4 fill-current" />
                 )}
               </button>
-              {enMarcha && (
-                <button
-                  type="button"
-                  onClick={() => void descartar()}
-                  title="Descartar sin guardar"
-                  className="btn btn-ghost h-9 w-9 p-0 text-muted hover:text-danger"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
+              {(enMarcha || pausa) && (
+                <DropdownMenu.Root>
+                  <DropdownMenu.Trigger
+                    disabled={cargando}
+                    title="Más"
+                    aria-label={enMarcha ? "Más para este cronómetro" : "Más para esta pausa"}
+                    className="btn btn-ghost h-9 w-9 p-0 text-muted hover:text-ink disabled:opacity-50"
+                  >
+                    <MoreHorizontal className="h-4 w-4" />
+                  </DropdownMenu.Trigger>
+
+                  <DropdownMenu.Portal>
+                    <DropdownMenu.Content
+                      align="end"
+                      sideOffset={4}
+                      className="z-50 w-48 overflow-hidden rounded-[var(--radio)] border border-line bg-surface p-1"
+                      style={{ boxShadow: "var(--shadow-lg)" }}
+                    >
+                      {enMarcha ? (
+                        <>
+                          <DropdownMenu.Item
+                            onSelect={() => void alPulsarPausar()}
+                            className="flex cursor-pointer items-center gap-2 rounded-[var(--radio-sm)] px-2 py-1.5 text-sm outline-none data-highlighted:bg-surface-2"
+                          >
+                            <Pause className="h-3.5 w-3.5 text-muted" />
+                            Pausar
+                          </DropdownMenu.Item>
+                          <DropdownMenu.Item
+                            onSelect={() => void descartar()}
+                            className="flex cursor-pointer items-center gap-2 rounded-[var(--radio-sm)] px-2 py-1.5 text-sm text-danger outline-none data-highlighted:bg-danger-soft"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            Descartar
+                          </DropdownMenu.Item>
+                        </>
+                      ) : (
+                        <DropdownMenu.Item
+                          onSelect={() => void quitarPausa()}
+                          className="flex cursor-pointer items-center gap-2 rounded-[var(--radio-sm)] px-2 py-1.5 text-sm outline-none data-highlighted:bg-surface-2"
+                        >
+                          <X className="h-3.5 w-3.5 text-muted" />
+                          Quitar la pausa
+                        </DropdownMenu.Item>
+                      )}
+                    </DropdownMenu.Content>
+                  </DropdownMenu.Portal>
+                </DropdownMenu.Root>
               )}
             </>
           ) : (

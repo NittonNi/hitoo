@@ -6,8 +6,10 @@ import { getSesion } from "@/lib/sesion"
 import { createClient } from "@/lib/supabase/server"
 import {
   aEntradaEnMarcha,
+  aEntradaPausada,
   enMarchaEnOtrosEspacios,
   SELECT_EN_MARCHA,
+  SELECT_PAUSA,
 } from "@/lib/cronometro"
 import { ProveedorSesion } from "@/components/proveedor-sesion"
 import { ProveedorCronometro } from "@/components/proveedor-cronometro"
@@ -64,14 +66,21 @@ async function MarcoSesion({
 
   /* Uno en marcha por espacio. Se piden todos los tuyos de una vez: el de este
      espacio es el cronómetro, y los de los otros solo sirven para avisar si
-     alguno lleva demasiado (AvisoOlvido). La cuota sale a la vez, no detrás. */
-  const [{ data: enMarcha }, suscripcion] = await Promise.all([
+     alguno lleva demasiado (AvisoOlvido). La cuota y la pausa de este espacio
+     salen a la vez, no detrás. */
+  const [{ data: enMarcha }, suscripcion, { data: pausaFila }] = await Promise.all([
     supabase
       .from("time_entries")
       .select(SELECT_EN_MARCHA)
       .eq("user_id", sesion.perfil.id)
       .is("end_at", null),
     getSuscripcion(sesion.espacio.id),
+    supabase
+      .from("timer_pauses")
+      .select(SELECT_PAUSA)
+      .eq("user_id", sesion.perfil.id)
+      .eq("workspace_id", sesion.espacio.id)
+      .maybeSingle(),
   ])
   const aqui = enMarcha?.find((e) => e.workspace_id === sesion.espacio.id)
 
@@ -90,6 +99,7 @@ async function MarcoSesion({
         key={sesion.espacio.id}
         espacioId={sesion.espacio.id}
         inicial={aEntradaEnMarcha(aqui)}
+        pausaInicial={aEntradaPausada(pausaFila)}
       >
         <Armazon plegadoInicial={menuPlegado}>
           <AvisoOlvido

@@ -116,6 +116,26 @@ export type EntradaEnMarcha = {
   tagIds: string[]
 }
 
+/**
+ * Un rato que se paró con «Pausar»: la hora ya quedó cerrada y guardada, y
+ * esto es solo lo que hace falta para que «Seguir» arranque otra igual
+ * (mismo proyecto, edición, tarea, descripción, facturable y etiquetas).
+ */
+export type EntradaPausada = {
+  /** El id de la hora ya cerrada, para deshacer «Quitar la pausa». */
+  entryId: string
+  project_id: string | null
+  edition_id: string | null
+  task_id: string | null
+  description: string
+  start_at: string
+  end_at: string
+  billable: boolean
+  proyecto: { id: string; name: string; color: string } | null
+  tarea: { id: string; name: string } | null
+  tagIds: string[]
+}
+
 /** Lo que hace falta para arrancar o guardar una entrada. */
 export type BorradorEntrada = {
   project_id: string | null

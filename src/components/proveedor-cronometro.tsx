@@ -12,10 +12,15 @@ import { useRouter } from "next/navigation"
 
 import { createClient } from "@/lib/supabase/client"
 import { mensajeError } from "@/lib/errores"
-import { aEntradaEnMarcha, SELECT_EN_MARCHA } from "@/lib/cronometro"
+import {
+  aEntradaEnMarcha,
+  aEntradaPausada,
+  SELECT_EN_MARCHA,
+  SELECT_PAUSA,
+} from "@/lib/cronometro"
 import { useAvisos } from "@/components/avisos"
 import { useSesion } from "@/components/proveedor-sesion"
-import type { BorradorEntrada, Entrada, EntradaEnMarcha } from "@/lib/tipos"
+import type { BorradorEntrada, Entrada, EntradaEnMarcha, EntradaPausada } from "@/lib/tipos"
 
 type Contexto = {
   enMarcha: EntradaEnMarcha | null
@@ -28,6 +33,14 @@ type Contexto = {
   descartar: () => Promise<void>
   /** Vuelve a leer el cronómetro del servidor (otra pestaña, el movil...). */
   recargar: () => Promise<void>
+  /** Un rato pausado en este espacio, si lo hay: «Seguir» arranca uno igual. */
+  pausa: EntradaPausada | null
+  /** Para el rato en marcha y lo deja guardado como pausa, con las mismas
+   *  comprobaciones que parar (proyecto y descripción, si el espacio los exige).
+   *  Devuelve la hora cerrada, como parar, para poder proponerla. */
+  pausar: () => Promise<Entrada | null>
+  /** Quita la pausa sin arrancar nada: el rato ya guardado no se toca. */
+  quitarPausa: () => Promise<void>
 }
 
 const ContextoCronometro = createContext<Contexto | null>(null)
@@ -35,6 +48,7 @@ const ContextoCronometro = createContext<Contexto | null>(null)
 export function ProveedorCronometro({
   espacioId,
   inicial,
+  pausaInicial,
   children,
 }: {
   /**
@@ -45,12 +59,15 @@ export function ProveedorCronometro({
    */
   espacioId: string
   inicial: EntradaEnMarcha | null
+  /** Un rato pausado en este espacio, leído igual que `inicial`. */
+  pausaInicial: EntradaPausada | null
   children: React.ReactNode
 }) {
   const router = useRouter()
   const { avisar } = useAvisos()
   const { perfil } = useSesion()
   const [enMarcha, setEnMarcha] = useState<EntradaEnMarcha | null>(inicial)
+  const [pausa, setPausa] = useState<EntradaPausada | null>(pausaInicial)
   const [ahora, setAhora] = useState(() => Date.now())
   const [cargando, setCargando] = useState(false)
   const supabaseRef = useRef(createClient())
@@ -95,10 +112,30 @@ export function ProveedorCronometro({
     return aEntradaEnMarcha(data)
   }, [espacioId])
 
+  /** La pausa de este espacio según el servidor; undefined si no hay sesión. */
+  const leerPausa = useCallback(async () => {
+    const supabase = supabaseRef.current
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) return undefined
+
+    const { data } = await supabase
+      .from("timer_pauses")
+      .select(SELECT_PAUSA)
+      .eq("user_id", user.id)
+      .eq("workspace_id", espacioId)
+      .maybeSingle()
+
+    return aEntradaPausada(data)
+  }, [espacioId])
+
   const recargar = useCallback(async () => {
-    const leida = await leer()
+    // A la vez: son independientes y la base ya garantiza que no coinciden
+    const [leida, pausaLeida] = await Promise.all([leer(), leerPausa()])
     if (leida !== undefined) setEnMarcha(leida)
-  }, [leer])
+    if (pausaLeida !== undefined) setPausa(pausaLeida)
+  }, [leer, leerPausa])
 
   // Si arrancaste el cronómetro en el movil y abres el portatil, que cuadre.
   useEffect(() => {
@@ -185,11 +222,14 @@ export function ProveedorCronometro({
     const tirado = enMarcha
     setCargando(true)
     try {
-      const { error } = await supabaseRef.current
+      const { data, error } = await supabaseRef.current
         .from("time_entries")
         .delete()
         .eq("id", tirado.id)
+        .select("id")
       if (error) throw error
+      // La RLS puede dejar pasar la orden y no borrar ninguna fila: PostgREST no lo cuenta como error
+      if (!data?.length) throw new Error("No se ha podido descartar el cronómetro.")
       setEnMarcha(null)
       router.refresh()
 
@@ -224,9 +264,111 @@ export function ProveedorCronometro({
     }
   }, [enMarcha, router, avisar, recargar, perfil.id])
 
+  /**
+   * Para el rato en marcha y lo deja guardado como pausa: mismas
+   * comprobaciones que parar (las hace la propia función en la base), y en la
+   * misma transacción se apunta en `timer_pauses`. La configuración ya la
+   * tenemos en `enMarcha` -es la misma hora que se acaba de cerrar-, así que
+   * no hace falta releerla del servidor para pintar la barra al momento.
+   */
+  const pausar = useCallback(async (): Promise<Entrada | null> => {
+    if (!enMarcha) return null
+    const activa = enMarcha
+    setCargando(true)
+    try {
+      const { data, error } = await supabaseRef.current.rpc("pause_timer", {
+        p_workspace_id: espacioId,
+      })
+      if (error) throw error
+      router.refresh()
+
+      // Igual que en parar(): sin nada que pausar la base no da error, da una fila vacía
+      if (!data?.id) {
+        const sigue = await leer()
+        if (sigue === null) {
+          setEnMarcha(null)
+          avisar("El cronómetro ya estaba parado.")
+        } else {
+          if (sigue) setEnMarcha(sigue)
+          avisar("No se ha podido pausar el cronómetro.", undefined, "mal")
+        }
+        return null
+      }
+
+      setEnMarcha(null)
+      setPausa({
+        entryId: data.id,
+        project_id: activa.project_id,
+        edition_id: activa.edition_id,
+        task_id: activa.task_id,
+        description: activa.description,
+        start_at: activa.start_at,
+        end_at: data.end_at!,
+        billable: activa.billable,
+        proyecto: activa.proyecto,
+        tarea: activa.tarea,
+        tagIds: activa.tagIds,
+      })
+      return data as Entrada
+    } catch (err) {
+      avisar(mensajeError(err), undefined, "mal")
+      return null
+    } finally {
+      setCargando(false)
+    }
+  }, [enMarcha, espacioId, leer, router, avisar])
+
+  /* Solo quita la fila de timer_pauses: el rato ya cerrado no se toca, así
+     que deshacerlo es solo volver a apuntar la pausa. */
+  const quitarPausa = useCallback(async () => {
+    if (!pausa) return
+    const quitada = pausa
+    setCargando(true)
+    try {
+      const { data, error } = await supabaseRef.current
+        .from("timer_pauses")
+        .delete()
+        .eq("workspace_id", espacioId)
+        .eq("user_id", perfil.id)
+        .select("entry_id")
+      if (error) throw error
+      if (!data?.length) throw new Error("No se ha podido quitar la pausa.")
+
+      setPausa(null)
+
+      avisar("Pausa quitada.", async () => {
+        const { error: errVolver } = await supabaseRef.current
+          .from("timer_pauses")
+          .insert({
+            workspace_id: espacioId,
+            user_id: perfil.id,
+            entry_id: quitada.entryId,
+          })
+        if (errVolver) throw new Error(mensajeError(errVolver))
+        await recargar()
+        return "Sigue en pausa."
+      })
+    } catch (err) {
+      avisar(mensajeError(err), undefined, "mal")
+    } finally {
+      setCargando(false)
+    }
+  }, [pausa, espacioId, perfil.id, avisar, recargar])
+
   return (
     <ContextoCronometro.Provider
-      value={{ enMarcha, segundos, cargando, arrancar, parar, descartar, recargar }}
+      value={{
+        enMarcha,
+        segundos,
+        cargando,
+        arrancar,
+        parar,
+        descartar,
+        recargar,
+        pausa,
+        pausar,
+        quitarPausa,
+      }}
     >
       {children}
     </ContextoCronometro.Provider>
