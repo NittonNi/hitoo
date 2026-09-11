@@ -19,5 +19,6 @@ paths:
 - **`al-entrar.tsx`**: sin JavaScript no esconde nada, y lo que ya se ve al cargar no se anima. Con `prefers-reduced-motion` no hay animación.
 - **«Llévame directo»**: va en una cookie (`cookies.ts`) para que el servidor redirija antes de pintar. `/?portada` enseña la portada igualmente.
 - **Una sola marca, la «h»**: `src/app/apple-icon.png` y `src/app/favicon.ico` salen de `public/icons/icon-512.png`. El apple-icon va cuadrado a sangre, porque iOS pone su propia máscara; el favicon conserva la transparencia.
-- **Falta**: `metadataBase` y `openGraph`/`twitter` en `layout.tsx`, un `sitemap.ts`, y el `theme_color` del manifiesto sigue con el azul antiguo.
+- **Color de tema**: el `theme_color` del manifiesto es el mismo `#f5f5f7` que el `viewport.themeColor` claro de `layout.tsx`. Con el acento, la app instalada abría con la barra azul y cambiaba al cargar.
+- **Falta**: `metadataBase` y `openGraph`/`twitter` en `layout.tsx`, y un `sitemap.ts`.
 - **Pulsado suave**: token `--pulsado`, `:active` en `.btn` y la clase `.pulsable`. El tinte va como `box-shadow` inset, para que valga sobre cualquier fondo.
