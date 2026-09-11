@@ -12,6 +12,7 @@ import { useCronometro } from "@/components/proveedor-cronometro"
 import { useSesion } from "@/components/proveedor-sesion"
 import { useAvisos } from "@/components/avisos"
 import { CampoHora } from "@/components/campo-hora"
+import { CampoDescripcion } from "@/components/campo-descripcion"
 import {
   SelectorProyecto,
   type Seleccion,
@@ -103,33 +104,50 @@ export function BarraCronometro({
   const setDescripcionLocal = (texto: string) =>
     setTecleado({ clave: claveActiva, texto })
 
-  /** Guarda un cambio sobre la entrada en marcha. */
+  /**
+   * Guarda un cambio sobre la entrada en marcha. Dice si se ha guardado, para
+   * que quien enseño el cambio por adelantado sepa si tiene que volver atras.
+   */
   async function actualizarEnMarcha(cambios: Partial<BorradorEntrada>) {
-    if (!enMarcha) return
+    if (!enMarcha) return false
     try {
       const { tagIds, ...campos } = cambios
       if (Object.keys(campos).length > 0) {
-        const { error } = await supabase.current
+        const { data, error } = await supabase.current
           .from("time_entries")
           .update(campos)
           .eq("id", enMarcha.id)
+          .select("id")
         if (error) throw error
+        // Si la RLS no deja, PostgREST no da error: devuelve cero filas
+        if (!data?.length) throw new Error("No se ha podido cambiar el cronómetro.")
       }
       if (tagIds) {
-        await supabase.current
+        /* Borrar cero etiquetas no dice nada: pudo no tener ninguna. Si no se
+           dejan tocar, lo dira el insert, que con la RLS si da error. */
+        const { error: errQuitar } = await supabase.current
           .from("time_entry_tags")
           .delete()
           .eq("entry_id", enMarcha.id)
+        if (errQuitar) throw errQuitar
         if (tagIds.length > 0) {
-          const { error } = await supabase.current
+          const { data, error } = await supabase.current
             .from("time_entry_tags")
             .insert(tagIds.map((tag_id) => ({ entry_id: enMarcha.id, tag_id })))
+            .select("tag_id")
           if (error) throw error
+          if ((data?.length ?? 0) < tagIds.length) {
+            throw new Error("No se han podido poner las etiquetas.")
+          }
         }
       }
       await recargar()
+      return true
     } catch (err) {
       avisar(mensajeError(err), undefined, "mal")
+      // Lo que si llegara a guardarse, que se vea
+      await recargar()
+      return false
     }
   }
 
@@ -146,6 +164,23 @@ export function BarraCronometro({
       ...sel,
       ...(proyecto && !enMarcha ? { billable: proyecto.billable_default } : {}),
     })
+  }
+
+  /**
+   * Una descripcion ya usada trae lo que llevaba: proyecto, edicion, tarea,
+   * etiquetas y facturable. Con el cronometro en marcha cambia la hora que
+   * corre, por el mismo camino que los selectores; sin el, rellena la barra y
+   * se arranca con el boton, como siempre.
+   */
+  async function elegirSugerencia(hora: BorradorEntrada) {
+    setDescripcionLocal(hora.description)
+    setFalta((f) => (f === "descripcion" || hora.project_id ? null : f))
+    if (!enMarcha) {
+      setBorrador(hora)
+      return
+    }
+    // Si no se ha guardado, el campo vuelve a decir lo que hay de verdad
+    if (!(await actualizarEnMarcha(hora))) setTecleado(null)
   }
 
   /** Al cerrar una entrada se propone a quien se haya elegido arriba. */
@@ -278,28 +313,24 @@ export function BarraCronometro({
             className="latido h-6 w-[3px] shrink-0 rounded-full bg-live-fill"
           />
         )}
-        <input
-          value={descripcionLocal}
-          onChange={(e) => {
-            setDescripcionLocal(e.target.value)
-            if (e.target.value.trim()) {
-              setFalta((f) => (f === "descripcion" ? null : f))
-            }
+        {/* Con sugerencias de lo que ya usaste debajo, como en Clockify */}
+        <CampoDescripcion
+          catalogo={catalogo}
+          valor={descripcionLocal}
+          actual={activo}
+          onChange={(texto) => {
+            setDescripcionLocal(texto)
+            if (texto.trim()) setFalta((f) => (f === "descripcion" ? null : f))
           }}
-          onBlur={() => {
+          alSalir={() => {
             if (enMarcha && descripcionLocal !== enMarcha.description) {
               void actualizarEnMarcha({ description: descripcionLocal })
             }
           }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault()
-              e.currentTarget.blur()
-              if (modoActivo === "cronometro") void alPulsarPrincipal()
-            }
+          alPulsarEnter={() => {
+            if (modoActivo === "cronometro") void alPulsarPrincipal()
           }}
-          placeholder="¿En qué estás trabajando?"
-          className="min-w-0 flex-1 bg-transparent px-1 text-[0.95rem] outline-none placeholder:text-muted"
+          alElegir={(hora) => void elegirSugerencia(hora)}
         />
         </div>
 
