@@ -1,6 +1,6 @@
 /** Cuentas de la rejilla del calendario: minutos a pixeles y reparto de solapes. */
 
-import { addDays, fromDateKey } from "@/lib/time"
+import { addDays, fromDateKey, toDateKey } from "@/lib/time"
 import type { EntradaVista } from "@/lib/tipos"
 
 /** Alto de una hora, en pixeles. Todo lo demas se deriva de aquí. */
@@ -54,6 +54,12 @@ export function comoHoraInput(minutos: number): string {
   return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`
 }
 
+/** Cuantos dias de calendario van de una fecha "2026-09-10" a otra. */
+function diasEntre(desde: string, hasta: string): number {
+  // Las dos a mediodia: un dia de 23 o 25 horas no llega a torcer el redondeo
+  return Math.round((fromDateKey(hasta).getTime() - fromDateKey(desde).getTime()) / 86_400_000)
+}
+
 /**
  * Los trozos que le tocan a un dia. Un rato de las nueve de la noche a las dos
  * de la madrugada no es un dia: son dos trozos, de 21:00 a 24:00 en el primero
@@ -81,10 +87,14 @@ function trozosDelDia(entradas: EntradaVista[], dia: string) {
     const acabaEnMedianoche = fin >= empiezaManana
     const sigueManana = fin > empiezaManana
 
-    // Minutos de reloj mas los dias enteros que se lleve por delante
+    /* Minutos de reloj mas los dias enteros que se lleve por delante. De
+       reloj, no de cronometro: contando milisegundos desde la medianoche, el
+       dia del cambio de hora el fin salia una hora descolocado respecto a
+       `desde` -que si es de reloj-, y al cogerlo para moverlo el bloque
+       ganaba o perdia una hora sin avisar. */
     const finReal = vieneDeAyer
       ? minutosDe(entrada.end_at)
-      : Math.round((fin.getTime() - empiezaElDia.getTime()) / 60000)
+      : minutosDe(entrada.end_at) + diasEntre(dia, toDateKey(fin)) * 24 * 60
 
     return [
       {

@@ -234,6 +234,38 @@ export function RejillaCalendario({
     return mapa
   }, [visibles, comoEntradas, dias])
 
+  /* Lo que se tiene en la mano se pinta donde va a caer, sea el dia que sea.
+     Con sus horas nuevas se corta por dias igual que una hora quieta, asi que
+     un rato que pasa de la medianoche se ve entero, con su trozo en el dia
+     siguiente. Mientras va en la mano no cambia de forma: conserva el ancho
+     que tenia al cogerlo. */
+  const enLaMano = useMemo(() => {
+    const mapa = new Map<string, Bloque[]>()
+    if (!arrastre || arrastre.tipo === "crear") return mapa
+    const original = entradas.find((e) => e.id === arrastre.id)
+    if (!original) return mapa
+    // Con componentes locales, igual que al guardar: lo que se ve es lo que se escribe
+    const movida: EntradaVista = {
+      ...original,
+      start_at: instante(arrastre.dia, arrastre.desde),
+      end_at: instante(arrastre.dia, arrastre.hasta),
+    }
+    const cogido = [...porDia.values()]
+      .flat()
+      .find((b) => b.entrada.id === arrastre.id && !b.vieneDeAyer)
+    for (const dia of dias) {
+      mapa.set(
+        dia,
+        repartir([movida], dia).map((b) => ({
+          ...b,
+          columna: cogido?.columna ?? 0,
+          columnas: cogido?.columnas ?? 1,
+        })),
+      )
+    }
+    return mapa
+  }, [arrastre, entradas, porDia, dias])
+
   // El dia entero, siempre: apuntar a las 6 o a las 23 tiene que ser posible
   const franja = DIA_ENTERO
   const alto = ((franja.hasta - franja.desde) / 60) * ALTO_HORA
@@ -284,7 +316,14 @@ export function RejillaCalendario({
     const mover = (evento: PointerEvent) => {
       const previo = arrastreRef.current
       if (!previo) return
-      const { dia, minutos } = posicion(evento)
+      const sitio = posicion(evento)
+      const minutos = sitio.minutos
+      /* En escritorio, lo que se arrastra se va al dia de la columna que tiene
+         debajo; si se sale por un lado, se queda en el primero o el ultimo.
+         En el movil no: alli se ve un solo dia, y por el margen de las horas
+         `posicion` daba el de al lado, que no esta en pantalla. Pasar de dia
+         alli es cosa del desliz. */
+      const dia = esMovil ? previo.dia : sitio.dia
 
       let siguiente: Arrastre
       if (previo.tipo === "crear") {
@@ -783,7 +822,9 @@ export function RejillaCalendario({
             >
             <div
               ref={refColumnas}
-              className={cn("grid grid-cols-7", esMovil && "w-[700%]")}
+              /* Con un bloque en la mano se pasa por encima del texto de
+                 otros: que no se vaya seleccionando por el camino. */
+              className={cn("grid grid-cols-7", esMovil && "w-[700%]", arrastre && "select-none")}
               style={{
                 height: alto,
                 /* Medio dia hacia donde va: lo justo para que se vea salir sin
@@ -815,6 +856,7 @@ export function RejillaCalendario({
                   franja={franja}
                   editable
                   arrastre={arrastre}
+                  arrastrados={enLaMano.get(dia) ?? []}
                   ahora={ahora}
                   onCrear={(minutos, e) =>
                     iniciarSegunPuntero(e, {
@@ -870,7 +912,7 @@ export function RejillaCalendario({
       <p className="no-print text-xs text-muted">
         <span className="hidden md:inline">
           Arrastra sobre un hueco para apuntar horas. Mueve un bloque para
-          cambiarlo de sitio, o estira su borde de abajo para alargarlo.
+          cambiarlo de hora o de día, o estira su borde de abajo para alargarlo.
         </span>
         {/* Con el dedo la regla es otra: deslizar es bajar por la pantalla */}
         <span className="md:hidden">
@@ -1321,6 +1363,7 @@ function ColumnaDia({
   franja,
   editable,
   arrastre,
+  arrastrados,
   ahora,
   onCrear,
   onMover,
@@ -1335,6 +1378,8 @@ function ColumnaDia({
   franja: { desde: number; hasta: number }
   editable: boolean
   arrastre: Arrastre | null
+  /** Los trozos de lo que se esta moviendo o estirando que caen en este dia. */
+  arrastrados: Bloque[]
   ahora: Date
   onCrear: (minutos: number, evento: React.PointerEvent<HTMLElement>) => void
   onMover: (
@@ -1368,8 +1413,24 @@ function ColumnaDia({
         }
       : null
 
+  /* Lo que se mueve o se estira no se pinta con sus horas de antes: sus
+     trozos llegan aparte, ya cortados por dias donde van a caer, y pueden ser
+     de otro dia. Si el trozo ya estaba en esta columna se cambia en su mismo
+     sitio de la lista: sacarlo y ponerlo al final obligaria a React a mover su
+     nodo, que es el que tiene el puntero, y el arrastre de siempre -en
+     vertical, y el del movil- no tiene por que notar nada. */
+  const idArrastrado = arrastre && arrastre.tipo !== "crear" ? arrastre.id : null
+  const sueltos = [...arrastrados]
+  const pintados = bloques.flatMap((bloque) => {
+    if (bloque.entrada.id !== idArrastrado) return [bloque]
+    const i = sueltos.findIndex((b) => b.vieneDeAyer === bloque.vieneDeAyer)
+    return i === -1 ? [] : sueltos.splice(i, 1)
+  })
+  pintados.push(...sueltos)
+
   return (
     <div
+      data-dia={dia}
       className={cn(
         "relative border-l border-line",
         esHoy && "bg-live-soft/40",
@@ -1394,28 +1455,17 @@ function ColumnaDia({
         </div>
       )}
 
-      {bloques.map((bloque) => {
-        const arrastrandose =
-          (arrastre?.tipo === "mover" || arrastre?.tipo === "redim") &&
-          arrastre.id === bloque.entrada.id
-        const desde = arrastrandose ? arrastre.desde : bloque.desde
+      {pintados.map((bloque) => {
+        const arrastrandose = bloque.entrada.id === idArrastrado
         // El rato puede acabar de madrugada; el dibujo se para a medianoche y
         // el resto se ve en la columna del dia siguiente
-        const hasta = Math.min(
-          24 * 60,
-          arrastrandose ? arrastre.hasta : bloque.hasta,
-        )
-        const finCrudo = arrastrandose ? arrastre.hasta : bloque.hasta
-        const cruzaMedianoche = finCrudo > 24 * 60
+        const { desde, hasta } = bloque
         /* Lo que se lee es la hora de verdad -21:00-2:00-, no el corte de la
-           medianoche; el +1 es quien dice que esas dos son del dia siguiente. */
+           medianoche; el +1 es quien dice que esas dos son del dia siguiente.
+           Arrastrando tambien: el trozo ya trae las horas a las que va. */
         const finTexto = bloque.sigueManana
           ? comoHora(minutosDe(bloque.entrada.end_at!))
-          : cruzaMedianoche
-            ? comoHora(finCrudo - 24 * 60)
-            : comoHora(hasta)
-        const enOtroDia = arrastrandose && arrastre.dia !== dia
-        if (enOtroDia) return null
+          : comoHora(hasta)
 
         const color = bloque.entrada.project_color ?? "var(--line-strong)"
         const anchura = 100 / bloque.columnas
@@ -1428,7 +1478,8 @@ function ColumnaDia({
         return (
           <div
             key={bloque.entrada.id + (bloque.vieneDeAyer ? "-sigue" : "")}
-            data-bloque
+            data-bloque={bloque.entrada.id}
+            data-arrastrando={arrastrandose || undefined}
             role="button"
             tabIndex={0}
             onKeyDown={(e) => {
@@ -1439,8 +1490,17 @@ function ColumnaDia({
             }}
             onPointerDown={(e) => {
               // La continuacion del dia anterior no se arrastra: se toca la de
-              // arriba, que es la que lleva la hora de inicio
-              if (pendiente || !editable || bloque.vieneDeAyer || e.button !== 0) return
+              // arriba, que es la que lleva la hora de inicio. Una hora cerrada
+              // tampoco: la base no deja cambiarla, y levantarla para que
+              // vuelva sola a su sitio con un error no tiene sentido.
+              if (
+                pendiente ||
+                !editable ||
+                bloque.vieneDeAyer ||
+                bloque.entrada.locked ||
+                e.button !== 0
+              )
+                return
               e.stopPropagation()
               const caja = e.currentTarget.getBoundingClientRect()
               // los últimos 8 px de alto son el tirador para alargar
@@ -1480,10 +1540,14 @@ function ColumnaDia({
                 ? "cursor-pointer border-2 border-dashed bg-surface/60 hover:bg-surface"
                 : "border-l-[3px] bg-surface shadow-sm ring-1 ring-inset",
               !pendiente && (bloque.entrada.billable ? "ring-billable-line" : "ring-line"),
-              editable && !pendiente && !bloque.vieneDeAyer && "cursor-grab active:cursor-grabbing",
-              arrastrandose && "opacity-80 shadow-lg",
+              editable &&
+                !pendiente &&
+                !bloque.vieneDeAyer &&
+                (bloque.entrada.locked ? "cursor-pointer" : "cursor-grab active:cursor-grabbing"),
+              // Por encima de todo: cambiado de dia, pasa sobre los de alli
+              arrastrandose && "z-10 opacity-80 shadow-lg",
               // El corte de medianoche se ve: el bloque no acaba ahi de verdad
-              (bloque.sigueManana || cruzaMedianoche) &&
+              bloque.sigueManana &&
                 "rounded-b-none border-b border-dashed border-b-live-line",
               bloque.vieneDeAyer && "rounded-t-none border-t border-dashed border-t-live-line",
             )}
@@ -1521,7 +1585,7 @@ function ColumnaDia({
               {/* El tiempo solo va hacia delante: el +1 avisa de que el rato
                   termina al dia siguiente. La continuacion no lleva marca; se
                   reconoce por el corte de puntos de arriba. */}
-              {(bloque.sigueManana || cruzaMedianoche) && (
+              {bloque.sigueManana && (
                 <sup className="ml-0.5 font-semibold text-live" title="Sigue al día siguiente">
                   +1
                 </sup>
@@ -1544,7 +1608,7 @@ function ColumnaDia({
                 <Euro className="absolute right-1 top-1.5 h-3 w-3 text-billable" />
               )
             )}
-            {editable && !bloque.sigueManana && !bloque.vieneDeAyer && (
+            {editable && !bloque.sigueManana && !bloque.vieneDeAyer && !bloque.entrada.locked && (
               <span
                 aria-hidden
                 className="absolute inset-x-0 bottom-0 h-2 cursor-ns-resize"
