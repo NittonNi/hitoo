@@ -5,11 +5,20 @@
  * la cuenta, así que las cabeceras se reconocen por sinonimos y el formato de
  * fecha se deduce mirando todas las filas antes de convertir ninguna.
  *
- * Las horas del informe vienen en el huso del espacio de trabajo, que damos por
- * el mismo que el de la app (Europe/Madrid).
+ * Las horas del informe vienen en el huso del espacio de trabajo (nunca en el
+ * del navegador de quien importa): `analizarCsv` recibe ese huso y convierte
+ * cada fecha+hora a partir de sus componentes, no sumando milisegundos -un
+ * cambio de hora no son siempre 24h-.
+ *
+ * Cada fichero se analiza por su lado, con su propio formato de fecha. Lo que
+ * se repite entre ficheros -misma persona, mismo inicio, mismo fin- cuenta una
+ * vez: `combinarFicheros` se encarga de esa parte.
  */
 
 import Papa from "papaparse"
+
+import { TIMEZONE, toDateKeyInZone } from "@/lib/time"
+import type { Catalogo } from "@/lib/tipos"
 
 export type FormatoFecha = "iso" | "dmy" | "mdy"
 
@@ -56,8 +65,13 @@ const CAMPOS = {
 
 type Campo = keyof typeof CAMPOS
 
-/** minusculas, sin acentos y sin espacios de más */
-function normalizar(texto: string): string {
+/**
+ * minusculas, sin acentos y sin espacios de más. Sirve tanto para reconocer
+ * cabeceras como para comparar nombres de área/proyecto/tarea/etiqueta con lo
+ * que ya hay en el espacio, que puede venir en mayúsculas por el «estilo de
+ * texto» de Ajustes.
+ */
+export function normalizar(texto: string): string {
   return texto
     .toLowerCase()
     .normalize("NFD")
@@ -172,13 +186,58 @@ export function parsearDuracion(texto: string): number | null {
   return null
 }
 
+/**
+ * Un formateador por huso, reutilizado entre filas: crear uno nuevo por fila
+ * (10.494 filas x 2 fechas) cuesta segundos enteros; cacheado, unos cientos
+ * de milisegundos.
+ */
+const formateadoresZona = new Map<string, Intl.DateTimeFormat>()
+
+function formateadorZona(timeZone: string): Intl.DateTimeFormat {
+  let formateador = formateadoresZona.get(timeZone)
+  if (!formateador) {
+    formateador = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hourCycle: "h23",
+    })
+    formateadoresZona.set(timeZone, formateador)
+  }
+  return formateador
+}
+
+/**
+ * El instante real (UTC) de una fecha+hora de pared en `timeZone`, a partir de
+ * sus componentes. Mismo método que `zonedTimeToUtc` de `time.ts` -que no se
+ * puede importar de ahí porque ese fichero es de solo lectura para esta
+ * tarea-: se prueba el instante, se lee qué hora marcaría el reloj de esa zona
+ * en ese instante y se corrige por la diferencia. Nunca suma milisegundos a
+ * otro instante, que un día con cambio de hora no son siempre 86 400 000 ms.
+ */
 function aIso(
   fecha: [number, number, number],
   hora: [number, number, number],
+  timeZone: string,
 ): string {
   const [y, m, d] = fecha
   const [hh, mm, ss] = hora
-  return new Date(y, m - 1, d, hh, mm, ss, 0).toISOString()
+  const supuesto = Date.UTC(y, m - 1, d, hh, mm, ss)
+  const partes = formateadorZona(timeZone).formatToParts(new Date(supuesto))
+  const num = (tipo: string) => Number(partes.find((p) => p.type === tipo)?.value)
+  const comoUtc = Date.UTC(
+    num("year"),
+    num("month") - 1,
+    num("day"),
+    num("hour"),
+    num("minute"),
+    num("second"),
+  )
+  return new Date(supuesto - (comoUtc - supuesto)).toISOString()
 }
 
 /* ------------------------------------------------------------------ análisis */
@@ -191,13 +250,31 @@ function esSi(valor: string): boolean {
 /**
  * Identificador estable de cada entrada para poder reimportar el mismo informe
  * sin duplicar: Clockify no exporta el id de la entrada, así que se construye
- * con la persona y el intervalo exacto, que no se repite.
+ * con la persona y el intervalo exacto.
+ *
+ * Ese intervalo casi siempre es único, pero no del todo: una misma persona
+ * puede tener dos filas con el mismo inicio y el mismo fin -dos huecos
+ * copiados, o dos actividades distintas anotadas a mano en el mismo rato-.
+ * La primera aparición de una clave dentro de un fichero se queda con el
+ * formato de siempre (`persona|inicio|fin`), para no romper lo ya importado;
+ * las siguientes llevan el número de aparición detrás (`|2`, `|3`...), para
+ * que Clockify y hitoo cuenten las mismas horas.
  */
-export function claveExterna(quien: string, inicio: string, fin: string): string {
-  return `${quien.toLowerCase()}|${inicio}|${fin}`
+export function claveExterna(
+  quien: string,
+  inicio: string,
+  fin: string,
+  aparicion: number = 1,
+): string {
+  const base = `${quien.toLowerCase()}|${inicio}|${fin}`
+  return aparicion > 1 ? `${base}|${aparicion}` : base
 }
 
-export function analizarCsv(texto: string, forzarFormato?: FormatoFecha): Analisis {
+export function analizarCsv(
+  texto: string,
+  timeZone: string = TIMEZONE,
+  forzarFormato?: FormatoFecha,
+): Analisis {
   const resultado = Papa.parse<Record<string, string>>(texto, {
     header: true,
     skipEmptyLines: "greedy",
@@ -228,6 +305,9 @@ export function analizarCsv(texto: string, forzarFormato?: FormatoFecha): Analis
 
   const filas: FilaClockify[] = []
   const descartadas: { fila: number; motivo: string }[] = []
+  // Cuenta las apariciones de cada persona+inicio+fin dentro de este fichero,
+  // para numerar la clave cuando se repite (ver claveExterna).
+  const apariciones = new Map<string, number>()
 
   registros.forEach((registro, indice) => {
     const numero = indice + 2 // +1 por la cabecera, +1 para contar desde uno
@@ -239,7 +319,7 @@ export function analizarCsv(texto: string, forzarFormato?: FormatoFecha): Analis
       return
     }
 
-    const inicio = aIso(fechaInicio, horaInicio)
+    const inicio = aIso(fechaInicio, horaInicio, timeZone)
 
     // El fin puede venir en columnas propias o deducirse de la duración
     const fechaFin = parsearFecha(valor(registro, "fechaFin"), formato)
@@ -250,30 +330,38 @@ export function analizarCsv(texto: string, forzarFormato?: FormatoFecha): Analis
 
     let fin: string
     if (fechaFin && horaFin) {
-      fin = aIso(fechaFin, horaFin)
+      // Con fecha y hora propias no hace falta adivinar nada: ya vienen con
+      // el día real de fin, cruce de medianoche incluido.
+      fin = aIso(fechaFin, horaFin, timeZone)
     } else if (duracion !== null && duracion > 0) {
+      // Sumar segundos a un instante siempre es correcto, cambie o no la hora
+      // ese día: es aritmética de reloj real, no de reloj de pared.
       fin = new Date(new Date(inicio).getTime() + duracion * 1000).toISOString()
     } else {
       descartadas.push({ fila: numero, motivo: "Sin hora de fin ni duración" })
       return
     }
 
-    let segundos = Math.round(
+    const segundos = Math.round(
       (new Date(fin).getTime() - new Date(inicio).getTime()) / 1000,
     )
 
-    // Una entrada que cruza la medianoche sin columna de fecha de fin sale negativa
     if (segundos < 0) {
-      fin = new Date(new Date(fin).getTime() + 86400000).toISOString()
-      segundos += 86400
+      descartadas.push({ fila: numero, motivo: "El fin es anterior al inicio" })
+      return
     }
-    if (segundos <= 0) {
-      descartadas.push({ fila: numero, motivo: "Duración cero o negativa" })
+    if (segundos === 0) {
+      descartadas.push({ fila: numero, motivo: "Duración cero" })
       return
     }
 
     const email = valor(registro, "email").toLowerCase()
     const usuario = valor(registro, "usuario")
+    const persona = email || usuario || "?"
+
+    const base = claveExterna(persona, inicio, fin)
+    const veces = (apariciones.get(base) ?? 0) + 1
+    apariciones.set(base, veces)
 
     filas.push({
       fila: numero,
@@ -291,7 +379,7 @@ export function analizarCsv(texto: string, forzarFormato?: FormatoFecha): Analis
       inicio,
       fin,
       segundos,
-      clave: claveExterna(email || usuario || "?", inicio, fin),
+      clave: veces > 1 ? claveExterna(persona, inicio, fin, veces) : base,
     })
   })
 
@@ -314,4 +402,159 @@ export function personasDe(filas: FilaClockify[]) {
       })
   }
   return [...mapa.values()].sort((a, b) => b.filas - a.filas)
+}
+
+/* ------------------------------------------------------------- varios ficheros */
+
+export type FicheroAnalizado = {
+  nombre: string
+  analisis: Analisis
+}
+
+export type ResumenFichero = {
+  nombre: string
+  filas: number
+  descartadas: number
+  /** null si el fichero no trae ninguna fila valida. */
+  desde: string | null
+  hasta: string | null
+}
+
+/**
+ * "Nombre, filas, primera y última fecha, descartadas" de un fichero ya
+ * analizado. La fecha es la del huso del espacio -recortar el ISO se queda
+ * en UTC y desplaza un día los ratos de madrugada-.
+ */
+export function resumenDeFichero(
+  fichero: FicheroAnalizado,
+  timeZone: string = TIMEZONE,
+): ResumenFichero {
+  const fechas = fichero.analisis.filas
+    .map((f) => toDateKeyInZone(new Date(f.inicio), timeZone))
+    .sort()
+  return {
+    nombre: fichero.nombre,
+    filas: fichero.analisis.filas.length,
+    descartadas: fichero.analisis.descartadas.length,
+    desde: fechas[0] ?? null,
+    hasta: fechas[fechas.length - 1] ?? null,
+  }
+}
+
+/**
+ * Junta las filas válidas de varios ficheros -uno por tramo de un año, que es
+ * lo máximo que exporta Clockify gratis de una vez-. Lo que se repite entre
+ * ficheros -misma clave: misma persona, mismo inicio, mismo fin- cuenta una
+ * vez, gana el primer fichero que la trae. El día de corte entre dos
+ * exportaciones sale en las dos, así que esto es lo que evita contarlo doble.
+ */
+export function combinarFicheros(ficheros: FicheroAnalizado[]): {
+  filas: FilaClockify[]
+  repetidasEntreFicheros: number
+} {
+  const vistas = new Set<string>()
+  const filas: FilaClockify[] = []
+  let repetidasEntreFicheros = 0
+
+  for (const fichero of ficheros) {
+    for (const fila of fichero.analisis.filas) {
+      if (vistas.has(fila.clave)) {
+        repetidasEntreFicheros++
+        continue
+      }
+      vistas.add(fila.clave)
+      filas.push(fila)
+    }
+  }
+
+  return { filas, repetidasEntreFicheros }
+}
+
+/* -------------------------------------------------------------------- catalogo */
+
+export type NuevoProyecto = { nombre: string; area: string | null }
+export type NuevaTarea = { nombre: string; proyecto: string }
+
+export type CatalogoFaltante = {
+  areas: string[]
+  proyectos: NuevoProyecto[]
+  tareas: NuevaTarea[]
+  etiquetas: string[]
+}
+
+/**
+ * Qué áreas, proyectos, tareas y etiquetas hacen falta crear para estas filas,
+ * de lo que no está ya en el catálogo del espacio. La usan tanto el resumen de
+ * antes de importar como la propia importación, para que el número prometido
+ * y lo que de verdad se crea sea siempre el mismo.
+ *
+ * Compara sin mayúsculas ni tildes -el «estilo de texto» de Ajustes puede
+ * haber pasado lo que ya había a mayúsculas- y, si el mismo nombre aparece con
+ * grafías distintas dentro del propio informe (« Área», «area», «ÁREA»), se
+ * crea una sola vez, con la primera grafía que aparece.
+ *
+ * Las tareas se comparan por nombre de proyecto, no por su id: un proyecto
+ * nuevo en esta misma importación todavía no tiene id.
+ */
+export function catalogoFaltante(
+  filas: FilaClockify[],
+  catalogo: Pick<Catalogo, "categorias" | "proyectos" | "tareas" | "etiquetas">,
+): CatalogoFaltante {
+  const areasExistentes = new Set(
+    catalogo.categorias.filter((c) => !c.parent_id).map((c) => normalizar(c.name)),
+  )
+  const proyectosExistentes = new Set(catalogo.proyectos.map((p) => normalizar(p.name)))
+  const etiquetasExistentes = new Set(catalogo.etiquetas.map((t) => normalizar(t.name)))
+  const proyectoPorId = new Map(catalogo.proyectos.map((p) => [p.id, p.name]))
+  const tareasExistentes = new Set(
+    catalogo.tareas.map((t) => {
+      const proyecto = proyectoPorId.get(t.project_id)
+      return `${proyecto ? normalizar(proyecto) : t.project_id}|${normalizar(t.name)}`
+    }),
+  )
+
+  const areas = new Map<string, string>()
+  const proyectos = new Map<string, NuevoProyecto>()
+  const tareas = new Map<string, NuevaTarea>()
+  const etiquetas = new Map<string, string>()
+
+  for (const fila of filas) {
+    const area = fila.area.trim()
+    if (area) {
+      const n = normalizar(area)
+      if (!areasExistentes.has(n) && !areas.has(n)) areas.set(n, area)
+    }
+    for (const etiqueta of fila.etiquetas) {
+      const t = etiqueta.trim()
+      if (!t) continue
+      const n = normalizar(t)
+      if (!etiquetasExistentes.has(n) && !etiquetas.has(n)) etiquetas.set(n, t)
+    }
+  }
+
+  for (const fila of filas) {
+    const proyecto = fila.proyecto.trim()
+    if (!proyecto) continue
+    const n = normalizar(proyecto)
+    if (!proyectosExistentes.has(n) && !proyectos.has(n)) {
+      proyectos.set(n, { nombre: proyecto, area: fila.area.trim() || null })
+    }
+  }
+
+  for (const fila of filas) {
+    const proyecto = fila.proyecto.trim()
+    const tarea = fila.tarea.trim()
+    if (!proyecto || !tarea) continue
+    const clave = `${normalizar(proyecto)}|${normalizar(tarea)}`
+    if (!tareasExistentes.has(clave) && !tareas.has(clave)) {
+      tareas.set(clave, { nombre: tarea, proyecto })
+    }
+  }
+
+  return {
+    areas: [...areas.values()],
+    proyectos: [...proyectos.values()],
+    tareas: [...tareas.values()],
+    etiquetas: [...etiquetas.values()],
+  }
 }

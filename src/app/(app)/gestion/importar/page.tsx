@@ -15,6 +15,7 @@ export default async function PaginaImportar() {
   return (
     <ImportadorClockify
       espacioId={espacio.id}
+      timeZone={espacio.timezone}
       yoId={perfil.id}
       rol={rol}
       catalogo={catalogo}
