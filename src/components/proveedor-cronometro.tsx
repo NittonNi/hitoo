@@ -296,15 +296,21 @@ export function ProveedorCronometro({
       }
 
       setEnMarcha(null)
+      /* Lo que se guarda sale de la fila que devuelve la base, no de la copia
+         que teniamos: si justo antes se guardo un cambio -la descripcion al
+         salir del campo, por ejemplo-, `enMarcha` puede ir un paso por detras,
+         y la pausa -y con ella «Seguir»- arrancaria con el texto viejo. El
+         nombre y el color del proyecto, la tarea y las etiquetas no vienen en
+         esa fila: esos si salen de lo que ya teniamos. */
       setPausa({
         entryId: data.id,
-        project_id: activa.project_id,
-        edition_id: activa.edition_id,
-        task_id: activa.task_id,
-        description: activa.description,
-        start_at: activa.start_at,
+        project_id: data.project_id,
+        edition_id: data.edition_id,
+        task_id: data.task_id,
+        description: data.description,
+        start_at: data.start_at,
         end_at: data.end_at!,
-        billable: activa.billable,
+        billable: data.billable,
         proyecto: activa.proyecto,
         tarea: activa.tarea,
         tagIds: activa.tagIds,

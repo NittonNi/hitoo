@@ -175,7 +175,10 @@ export function BarraCronometro({
   // Lo que se esta tecleando ahora mismo, atado a la entrada que se edita: si
   // cambia la entrada (arranca otra, para, llega del movil) el texto local
   // caduca solo y vuelve a mandar lo que dice el servidor.
-  const claveActiva = enMarcha?.id ?? "borrador"
+  // En pausa, la clave es la de esa pausa: si no, el "" que deja arrancar
+  // desde la barra seguiria valiendo para el borrador y taparia la
+  // descripcion del rato pausado, y "Seguir" arrancaria sin ella.
+  const claveActiva = enMarcha?.id ?? (pausa ? `pausa:${pausa.entryId}` : "borrador")
   const [tecleado, setTecleado] = useState<{ clave: string; texto: string } | null>(
     null,
   )
@@ -346,24 +349,38 @@ export function BarraCronometro({
   }
 
   /* Nada de horas huerfanas: si el espacio lo exige, no se para -ni se
-     pausa- sin proyecto ni sin decir en que se ha ido el rato. Devuelve si
-     falta algo, para que quien llama no siga. */
-  function faltaAlgo(): boolean {
+     pausa- sin proyecto ni sin decir en que se ha ido el rato. Lo que cuenta
+     es lo que se ve en la barra, no lo ultimo guardado: la descripcion se
+     guarda al salir del campo, y quien escribe y pulsa Parar seguido no
+     espera a ese viaje -asi se quedaba sin poder parar, con el texto ya
+     escrito delante-. Si hay texto sin guardar, se guarda aqui y se sigue.
+     Devuelve si falta algo, para que quien llama no siga. */
+  async function faltaAlgo(): Promise<boolean> {
     if (!enMarcha) return false
     if (espacio.require_project && !enMarcha.project_id) {
       setFalta("proyecto")
       return true
     }
-    if (espacio.require_description && !enMarcha.description.trim()) {
-      setFalta("descripcion")
-      return true
+    if (espacio.require_description) {
+      const escrito = descripcionLocal.trim()
+      if (!escrito) {
+        setFalta("descripcion")
+        return true
+      }
+      if (
+        escrito !== enMarcha.description.trim() &&
+        !(await actualizarEnMarcha({ description: descripcionLocal }))
+      ) {
+        // No se ha podido guardar: actualizarEnMarcha ya lo ha dicho
+        return true
+      }
     }
     return false
   }
 
   async function alPulsarPrincipal() {
     if (enMarcha) {
-      if (faltaAlgo()) return
+      if (await faltaAlgo()) return
       setAvisoCompartir(null)
       const cerrada = await parar()
       if (cerrada) {
@@ -398,7 +415,7 @@ export function BarraCronometro({
    * instante de campos vacíos entre medias.
    */
   async function alPulsarPausar() {
-    if (faltaAlgo()) return
+    if (await faltaAlgo()) return
     setBorrador({
       project_id: activo.project_id,
       edition_id: activo.edition_id,
@@ -603,6 +620,7 @@ export function BarraCronometro({
               espacioId={espacio.id}
               userId={perfil.id}
               exigeProyecto={espacio.require_project}
+              exigeDescripcion={espacio.require_description}
               borrador={{ ...borrador, description: descripcionLocal }}
               guardando={guardando}
               setGuardando={setGuardando}
@@ -711,6 +729,7 @@ function EntradaManual({
   espacioId,
   userId,
   exigeProyecto,
+  exigeDescripcion,
   borrador,
   guardando,
   setGuardando,
@@ -720,6 +739,8 @@ function EntradaManual({
   userId: string
   /** El espacio no quiere horas sin proyecto. */
   exigeProyecto: boolean
+  /** Ni horas sin decir en que se ha ido el rato. */
+  exigeDescripcion: boolean
   borrador: BorradorEntrada
   guardando: boolean
   setGuardando: (v: boolean) => void
@@ -765,6 +786,18 @@ function EntradaManual({
     if (exigeProyecto && !borrador.project_id) {
       avisar(
         "Elige un proyecto: este espacio no guarda horas sueltas.",
+        undefined,
+        "mal",
+      )
+      return
+    }
+    /* Lo mismo que al parar el cronometro: si el espacio pide descripcion,
+       tampoco se guarda a mano sin ella. El texto llega ya en `borrador`
+       -el padre le pone lo que se ve en el campo-, asi que aqui basta con
+       mirarlo. */
+    if (exigeDescripcion && !borrador.description.trim()) {
+      avisar(
+        "Escribe en qué se ha ido el rato: este espacio lo pide.",
         undefined,
         "mal",
       )
@@ -931,7 +964,14 @@ function EditorInicio({
         title="Cambiar a qué hora empezó"
         className="cifra w-28 rounded-[var(--radio-sm)] border border-transparent px-1 text-right text-xl font-semibold tabular-nums text-running transition hover:border-live-line hover:bg-surface/70 data-[state=open]:border-live-line data-[state=open]:bg-surface/70"
       >
-        {formatDuration(segundos)}
+        {/* El servidor y el navegador calculan `segundos` en instantes
+            distintos -no es lo mismo pintar en el servidor que hidratar un
+            momento despues-, asi que el segundo puede no coincidir (0:22:08
+            contra 0:22:07). No es un fallo de verdad: con
+            suppressHydrationWarning React no lo avisa ni lo fuerza a la
+            marca del servidor, y sigue contando normal desde el siguiente
+            tick, sin vaciar el numero ni dar un salto. */}
+        <span suppressHydrationWarning>{formatDuration(segundos)}</span>
       </Popover.Trigger>
 
       <Popover.Portal>
