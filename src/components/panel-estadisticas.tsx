@@ -476,7 +476,8 @@ export function PanelEstadisticas({
       {/* ----------------------------------------------------------- mandos */}
       <div className="no-print space-y-2">
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex rounded-[3px] border border-line-strong bg-surface p-0.5 text-sm">
+          {/* A 390 px los cinco periodos no caben: se desliza el mando, no la página */}
+          <div className="flex max-w-full overflow-x-auto rounded-[3px] border border-line-strong bg-surface p-0.5 text-sm">
             {PRESETS.map((p) => (
               <button
                 key={p.clave}
