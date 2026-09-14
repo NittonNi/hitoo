@@ -7,6 +7,7 @@ import { Download, FileSpreadsheet, FileText, Printer } from "lucide-react"
 
 import { createClient } from "@/lib/supabase/client"
 import { mensajeError } from "@/lib/errores"
+import { porTandas, quincenas, traerTodo } from "@/lib/paginar"
 import { useSesion } from "@/components/proveedor-sesion"
 import { FiltroMultiple } from "@/components/filtro-multiple"
 import { categoriasRaiz, SIN_CATEGORIA } from "@/lib/categorias"
@@ -19,6 +20,7 @@ import {
   formatDurationShort,
   formatHoursDecimal,
   formatMoney,
+  todayKey,
 } from "@/lib/time"
 import type { Catalogo, EntradaVista, Miembro } from "@/lib/tipos"
 import { cn } from "@/lib/utils"
@@ -202,16 +204,42 @@ export function PanelInformes({
     setGenerando("todo")
     setErrorDescarga(null)
     try {
-      const { data, error } = await createClient()
-        .from("v_entries")
-        .select("*")
+      // Por quincenas y páginas: el `.limit(50000)` que había se quedaba en
+      // 1000 filas, y paginar todo el histórico de una vez agota el tiempo de
+      // la consulta (ver paginar.ts)
+      const supabase = createClient()
+      const { data: primera, error } = await supabase
+        .from("time_entries")
+        .select("local_date")
         .eq("workspace_id", espacio.id)
-        .not("end_at", "is", null)
+        .not("local_date", "is", null)
         .order("local_date", { ascending: true })
-        .limit(50000)
+        .limit(1)
+        .maybeSingle()
       if (error) throw error
-
-      const todas = (data ?? []) as EntradaVista[]
+      const tramos = primera?.local_date
+        ? quincenas(primera.local_date, todayKey(espacio.timezone)).reverse()
+        : []
+      const todas = (
+        await porTandas(
+          tramos.map(
+            ([desde, hasta]) =>
+              () =>
+                traerTodo((d, h) =>
+                  supabase
+                    .from("v_entries")
+                    .select("*")
+                    .eq("workspace_id", espacio.id)
+                    .gte("local_date", desde)
+                    .lte("local_date", hasta)
+                    .not("end_at", "is", null)
+                    .order("start_at", { ascending: true })
+                    .order("id", { ascending: true })
+                    .range(d, h),
+                ),
+          ),
+        )
+      ).flat() as EntradaVista[]
       if (todas.length === 0) {
         setErrorDescarga("Todavía no hay horas que descargar.")
         return

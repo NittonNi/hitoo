@@ -3,7 +3,7 @@ import { PistaPagina } from "@/components/pista-pagina"
 import { veTodo } from "@/lib/roles"
 import {
   cargarCatalogo,
-  cargarEntradas,
+  cargarEntradasEstadisticas,
   cargarMiembros,
   cargarReparto,
 } from "@/lib/datos"
@@ -24,12 +24,7 @@ export default async function PaginaEstadisticas() {
 
   const [catalogo, entradas, miembros, reparto] = await Promise.all([
     cargarCatalogo(espacio.id, true),
-    cargarEntradas({
-      espacioId: espacio.id,
-      desde,
-      hasta: todayKey(espacio.timezone),
-      limite: 40000,
-    }),
+    cargarEntradasEstadisticas(espacio.id, desde, todayKey(espacio.timezone)),
     cargarMiembros(espacio.id),
     cargarReparto(espacio.id),
   ])

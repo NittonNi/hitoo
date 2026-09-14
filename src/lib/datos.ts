@@ -1,6 +1,7 @@
 import { cache } from "react"
 
 import { createClient } from "@/lib/supabase/server"
+import { FILAS_POR_PAGINA, porTandas, quincenas, traerTodo } from "@/lib/paginar"
 import type { Catalogo, EntradaVista, Miembro, Reparto, RepartoShare } from "@/lib/tipos"
 
 /**
@@ -76,23 +77,76 @@ export async function cargarEntradas(opciones: {
 }): Promise<EntradaVista[]> {
   const supabase = await createClient()
 
-  let consulta = supabase
-    .from("v_entries")
-    .select("*")
-    .eq("workspace_id", opciones.espacioId)
-    .gte("local_date", opciones.desde)
-    .lte("local_date", opciones.hasta)
-    .order("start_at", { ascending: false })
+  const consulta = (desde = opciones.desde, hasta = opciones.hasta) => {
+    let c = supabase
+      .from("v_entries")
+      .select("*")
+      .eq("workspace_id", opciones.espacioId)
+      .gte("local_date", desde)
+      .lte("local_date", hasta)
+      .order("start_at", { ascending: false })
+      .order("id", { ascending: false })
 
-  if (opciones.userId) consulta = consulta.eq("user_id", opciones.userId)
-  if (opciones.projectId) consulta = consulta.eq("project_id", opciones.projectId)
-  if (opciones.soloTerminadas) consulta = consulta.not("end_at", "is", null)
-  if (opciones.limite) consulta = consulta.limit(opciones.limite)
+    if (opciones.userId) c = c.eq("user_id", opciones.userId)
+    if (opciones.projectId) c = c.eq("project_id", opciones.projectId)
+    if (opciones.soloTerminadas) c = c.not("end_at", "is", null)
+    return c
+  }
 
-  const { data, error } = await consulta
+  if (opciones.limite && opciones.limite <= FILAS_POR_PAGINA) {
+    const { data, error } = await consulta().limit(opciones.limite)
+    if (error) throw error
+    return (data ?? []) as EntradaVista[]
+  }
+
+  // Más de 1000 filas no llegan de una vez (ver paginar.ts). La ficha de
+  // proyecto ya va acotada por proyecto: le basta con paginar. Un periodo
+  // largo de todo el espacio -un informe de un año- va por quincenas.
+  const filas = opciones.projectId
+    ? await traerTodo((d, h) => consulta().range(d, h))
+    : (
+        await porTandas(
+          quincenas(opciones.desde, opciones.hasta).map(
+            ([desde, hasta]) =>
+              () => traerTodo((d, h) => consulta(desde, hasta).range(d, h)),
+          ),
+        )
+      ).flat()
+
+  return (opciones.limite ? filas.slice(0, opciones.limite) : filas) as EntradaVista[]
+}
+
+/**
+ * Las horas de un periodo largo para estadísticas, en una sola llamada
+ * (`entradas_estadisticas`). Por `v_entries` la RLS se mira fila a fila: dos
+ * años de NITTON eran 17 s; así, un cuarto de segundo. No trae la descripción
+ * ni lo de compartir, que estadísticas no usa: llegan vacíos.
+ */
+export async function cargarEntradasEstadisticas(
+  espacioId: string,
+  desde: string,
+  hasta: string,
+): Promise<EntradaVista[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc("entradas_estadisticas", {
+    p_workspace: espacioId,
+    p_desde: desde,
+    p_hasta: hasta,
+  })
   if (error) throw error
 
-  return (data ?? []) as EntradaVista[]
+  return ((data ?? []) as Omit<
+    EntradaVista,
+    "description" | "updated_by" | "updated_by_name" | "compartida_con" | "venida_de" | "venida_de_id"
+  >[]).map((fila) => ({
+    ...fila,
+    description: "",
+    updated_by: null,
+    updated_by_name: null,
+    compartida_con: [],
+    venida_de: null,
+    venida_de_id: null,
+  }))
 }
 
 /** Horas que otra persona ha apuntado contando conmigo, sin contestar todavía. */

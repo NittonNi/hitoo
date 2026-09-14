@@ -30,6 +30,7 @@ Next.js 16.3 (App Router, `src/proxy.ts`), React 19, Tailwind v4, Radix sin esti
 - **Criterios de interfaz**: nada que aparezca solo al pasar el ratón, menús de selección que no se cierran al elegir, los mínimos modales, no repetir lo que la estructura ya dice y nada a mano si se puede deducir. El detalle está en el skill `house-style`.
 
 ## Trampas que ya costaron caro
+- **PostgREST corta en 1000 filas sin avisar**, también con `.limit(50000)` y en funciones que devuelven filas. Lo que pueda pasar de ahí va con `traerTodo` y `quincenas` (`src/lib/paginar.ts`), o por una función que devuelva un solo JSON. Paginar `v_entries` con `range()` sobre años agota el tiempo de la consulta: cada página calcula también las que se salta.
 - **PostgREST devuelve «todo bien» con 0 filas** cuando la RLS no deja escribir, y un `UPDATE` sin filas tampoco es un error para Postgres. Toda escritura lleva `.select()` y avisa si no cambió nada.
 - **«Hoy» y «esta semana» se calculan en la zona del espacio** (`espacio.timezone`), nunca con el reloj del servidor, que en producción va en UTC: `todayKey(tz)`, `startOfWeek(tz)`, `startOfDayInZone` y `toDateKeyInZone`, en `src/lib/time.ts`. `local_date` lo pone un disparador con esa misma zona.
 - **Cambio de hora**: el fin de un rato se construye con componentes locales, nunca sumando milisegundos al inicio.

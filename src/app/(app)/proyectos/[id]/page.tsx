@@ -40,8 +40,9 @@ export default async function PaginaProyecto({
       espacioId: espacio.id,
       desde: DESDE_SIEMPRE,
       hasta: todayKey(espacio.timezone),
+      // Sin tope: los cierres y el €/h cuentan todas las horas del proyecto, y
+      // uno de años pasa de largo las 2000 (NITTON tiene uno con 3500)
       projectId: id,
-      limite: 2000,
     }),
     supabase
       .from("project_results")
