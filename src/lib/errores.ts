@@ -66,6 +66,28 @@ export function mensajeError(error: unknown): string {
     if (raw.includes(clave)) return es
   }
 
+  // Enlazar Google Calendar con una cuenta que entro por correo y contraseña
+  // (linkIdentity en ajustes-calendario-google.tsx). Llega como error.code si
+  // falla al momento, o como el propio texto del codigo por la URL de vuelta
+  // si el fallo se ve despues de pasar por Google (error_code en
+  // auth/callback/route.ts) -por eso se mira tanto `code` como `raw`-.
+  const enlazar: Record<string, string> = {
+    identity_already_exists:
+      "Esa cuenta de Google ya está enlazada a otro usuario de hitoo. Entra con ese usuario, o desenlázala antes desde ahí.",
+    manual_linking_disabled: "Enlazar cuentas no está activado en el servidor.",
+    otra_cuenta_google:
+      "Esa cuenta de Google no es la tuya en hitoo, así que no se ha conectado nada y sigues con tu sesión. Vuelve a intentarlo eligiendo tu cuenta.",
+  }
+  for (const [clave, es] of Object.entries(enlazar)) {
+    if (code === clave || raw.includes(clave)) return es
+  }
+
+  // Contraseña debil o filtrada (proteccion de Supabase contra contraseñas
+  // conocidas, ademas del minimo de caracteres que ya cubre el regex de arriba)
+  if (code === "weak_password" || raw.includes("weak_password")) {
+    return "Esa contraseña es débil o ha aparecido en alguna filtración conocida. Prueba con otra."
+  }
+
   // Supabase Auth
   const auth: Record<string, string> = {
     "Invalid login credentials": "Correo o contraseña incorrectos.",

@@ -22,7 +22,7 @@ export const metadata = { title: "Calendario" }
 export default async function PaginaCalendario({
   searchParams,
 }: {
-  searchParams: Promise<{ semana?: string }>
+  searchParams: Promise<{ semana?: string; error_google?: string }>
 }) {
   const parametros = await searchParams
   const { perfil, espacio } = await getSesion()
@@ -84,7 +84,10 @@ export default async function PaginaCalendario({
             Las horas de la semana colocadas donde de verdad ocurrieron.
           </p>
         </div>
-        <AjustesCalendarioGoogle conectado={googleConectado} />
+        <AjustesCalendarioGoogle
+          conectado={googleConectado}
+          falloGoogle={parametros.error_google ?? null}
+        />
       </div>
 
       <PistaPagina clave="calendario" perfilId={perfil.id}>
