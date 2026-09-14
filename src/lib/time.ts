@@ -61,6 +61,24 @@ function zonedTimeToUtc(
   return new Date(supuesto - (comoUTC - supuesto))
 }
 
+/**
+ * `iso` más `seconds`, contados en el reloj de pared de `timeZone` y no en
+ * milisegundos: un día con cambio de hora no son 24 h. Si el resultado pasa
+ * de medianoche, Date.UTC lo arrastra solo al día siguiente.
+ */
+export function addSecondsInZone(iso: string, seconds: number, timeZone: string): string {
+  const p = wallClockParts(new Date(iso), timeZone)
+  return zonedTimeToUtc(
+    p.year,
+    p.month,
+    p.day,
+    p.hour,
+    p.minute,
+    p.second + seconds,
+    timeZone,
+  ).toISOString()
+}
+
 /* ---------------------------------------------------------------- duracion */
 
 /** 5025 -> "1:23:45" */

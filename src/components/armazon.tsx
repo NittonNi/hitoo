@@ -484,7 +484,9 @@ function CronometroLateral({ plegado }: { plegado: boolean }) {
         className="flex flex-col items-center gap-1.5 rounded-[var(--radio-sm)] border border-live-line bg-live-soft py-2"
       >
         <span aria-hidden className="latido h-[3px] w-6 rounded-full bg-live-fill" />
-        <p className="cifra text-[11px] font-semibold leading-none text-live">
+        {/* Servidor y navegador cuentan el segundo en instantes distintos: que
+            no lo den por fallo al hidratar (igual en los otros dos relojes) */}
+        <p suppressHydrationWarning className="cifra text-[11px] font-semibold leading-none text-live">
           {formatDuration(segundos)}
         </p>
         {botonParar}
@@ -497,7 +499,7 @@ function CronometroLateral({ plegado }: { plegado: boolean }) {
       <div className="flex items-center gap-2">
         <span aria-hidden className="latido h-8 w-[3px] shrink-0 rounded-full bg-live-fill" />
         <div className="min-w-0 flex-1">
-          <p className="cifra text-lg font-semibold leading-none text-live">
+          <p suppressHydrationWarning className="cifra text-lg font-semibold leading-none text-live">
             {formatDuration(segundos)}
           </p>
           <p className="mt-1 truncate text-xs text-ink-soft">{que}</p>
@@ -519,7 +521,7 @@ function CronometroPastilla() {
   return (
     <div className="flex items-center gap-1.5 rounded-[var(--radio-sm)] border border-live-line bg-live-soft py-1 pl-2 pr-1">
       <span aria-hidden className="latido h-4 w-[3px] rounded-full bg-live-fill" />
-      <span className="cifra text-sm font-semibold text-live">
+      <span suppressHydrationWarning className="cifra text-sm font-semibold text-live">
         {formatDuration(segundos)}
       </span>
       <button

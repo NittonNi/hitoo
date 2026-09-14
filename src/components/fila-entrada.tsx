@@ -17,6 +17,7 @@ import {
 import { createClient } from "@/lib/supabase/client"
 import { mensajeError } from "@/lib/errores"
 import { useCronometro } from "@/components/proveedor-cronometro"
+import { useSesion } from "@/components/proveedor-sesion"
 import { useAvisos } from "@/components/avisos"
 import { CompartirCon } from "@/components/compartir-con"
 import { DialogoEntrada } from "@/components/dialogo-entrada"
@@ -24,6 +25,7 @@ import { CampoHora } from "@/components/campo-hora"
 import { SelectorProyecto } from "@/components/selector-proyecto"
 import { SelectorEtiquetas } from "@/components/selector-etiquetas"
 import {
+  addSecondsInZone,
   combineDateAndTime,
   formatClock,
   formatDurationShort,
@@ -67,6 +69,7 @@ export function FilaEntrada({
 }) {
   const router = useRouter()
   const { arrancar } = useCronometro()
+  const { espacio } = useSesion()
   const { avisar } = useAvisos()
   const [campo, setCampo] = useState<Campo>(null)
   /* En el movil una hora se edita en su tarjeta entera: los campos sueltos de
@@ -194,20 +197,36 @@ export function FilaEntrada({
     )
   }
 
+  /**
+   * La copia empieza donde acaba la original y dura lo mismo. Se calcula con
+   * componentes de reloj en la zona del espacio: sumar milisegundos correría
+   * el rato una hora el día del cambio de hora, y así cruza la medianoche
+   * igual que la original si hace falta.
+   */
   async function duplicar() {
+    if (!entrada.end_at) return
     setOcupado(true)
     const supabase = createClient()
+    const duracion =
+      entrada.duration_seconds ??
+      Math.round(
+        (new Date(entrada.end_at).getTime() - new Date(entrada.start_at).getTime()) / 1000,
+      )
+    const start_at = entrada.end_at
+    const end_at = addSecondsInZone(start_at, duracion, espacio.timezone)
+
     const { data, error: err } = await supabase
       .from("time_entries")
       .insert({
         workspace_id: entrada.workspace_id,
         user_id: entrada.user_id,
         project_id: entrada.project_id,
+        edition_id: entrada.edition_id,
         task_id: entrada.task_id,
         description: entrada.description,
         billable: entrada.billable,
-        start_at: entrada.start_at,
-        end_at: entrada.end_at,
+        start_at,
+        end_at,
       })
       .select("id")
       .single()
@@ -217,9 +236,13 @@ export function FilaEntrada({
         .filter((e) => entrada.tags.includes(e.name))
         .map((e) => e.id)
       if (ids.length > 0) {
-        await supabase
+        const { data: puestas, error: errEtiquetas } = await supabase
           .from("time_entry_tags")
           .insert(ids.map((tag_id) => ({ entry_id: data.id, tag_id })))
+          .select("tag_id")
+        if (errEtiquetas || (puestas?.length ?? 0) < ids.length) {
+          avisar("Duplicada, pero no se han podido copiar las etiquetas.", undefined, "mal")
+        }
       }
     }
 
@@ -230,7 +253,7 @@ export function FilaEntrada({
     }
     router.refresh()
     avisar(
-      "Duplicada.",
+      `Duplicada: ${formatClock(start_at)}–${formatClock(end_at)}.`,
       data
         ? async () => {
             const { error: errQuitar } = await createClient()

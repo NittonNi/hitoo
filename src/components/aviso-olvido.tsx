@@ -13,6 +13,7 @@ import {
 } from "@/lib/cronometro"
 import { formatDuration } from "@/lib/time"
 import { useAvisos } from "@/components/avisos"
+import { useCambioEspacio } from "@/components/cambio-espacio"
 import { useCronometro } from "@/components/proveedor-cronometro"
 import { useSesion } from "@/components/proveedor-sesion"
 
@@ -59,6 +60,8 @@ type Linea = {
   /** null si es el de este espacio: entonces basta con «el cronómetro». */
   espacioNombre: string | null
   segundos: number
+  /** Ese otro espacio exige proyecto: desde aquí no se puede parar sin entrar. */
+  requiereProyecto: boolean
 }
 
 export function AvisoOlvido({ fuera }: { fuera: EnMarchaEnOtroEspacio[] }) {
@@ -67,6 +70,12 @@ export function AvisoOlvido({ fuera }: { fuera: EnMarchaEnOtroEspacio[] }) {
   const { perfil, espacio, espacios } = useSesion()
   const { enMarcha, segundos, parar, cargando } = useCronometro()
   const supabaseRef = useRef(createClient())
+  /* Mismo camino que el selector de espacios de la cabecera: guarda la
+     cookie, vuelve a pintar la sesion y acaba en el cronometro de ese
+     espacio, que es justo donde hace falta elegir el proyecto. */
+  const cambio = useCambioEspacio(() =>
+    avisar("No se ha podido cambiar de espacio. Prueba otra vez.", undefined, "mal"),
+  )
 
   /* Los de fuera llegan del layout y se ponen al día al volver a la pestaña,
      por si se arrancó o se paró uno en el movil. Si el layout trae datos
@@ -211,7 +220,13 @@ export function AvisoOlvido({ fuera }: { fuera: EnMarchaEnOtroEspacio[] }) {
 
   const lineas: Linea[] = []
   if (enMarcha && segundos >= SEGUNDOS_OLVIDO && !cerrados.includes(enMarcha.id)) {
-    lineas.push({ id: enMarcha.id, espacioId: espacio.id, espacioNombre: null, segundos })
+    lineas.push({
+      id: enMarcha.id,
+      espacioId: espacio.id,
+      espacioNombre: null,
+      segundos,
+      requiereProyecto: false,
+    })
   }
   for (const o of otros) {
     const s = segundosEntre(o.start_at, ahora)
@@ -221,6 +236,8 @@ export function AvisoOlvido({ fuera }: { fuera: EnMarchaEnOtroEspacio[] }) {
         espacioId: o.espacioId,
         espacioNombre: o.espacioNombre,
         segundos: s,
+        requiereProyecto:
+          espacios.find((p) => p.espacio.id === o.espacioId)?.espacio.require_project ?? false,
       })
     }
   }
@@ -252,6 +269,19 @@ export function AvisoOlvido({ fuera }: { fuera: EnMarchaEnOtroEspacio[] }) {
               </span>{" "}
               en marcha. ¿Se te olvidó?
             </p>
+            {/* Ese espacio pide proyecto: desde aqui "Parar" solo lo diria,
+                asi que se deja entrar directamente, con el mismo camino que
+                el selector de espacios. Azul: es lo que se puede pulsar. */}
+            {linea.requiereProyecto && (
+              <button
+                type="button"
+                onClick={() => cambio.cambiar(linea.espacioId)}
+                disabled={cambio.cambiando}
+                className="btn btn-primary h-8 shrink-0"
+              >
+                Cambiar a {linea.espacioNombre}
+              </button>
+            )}
             <button
               type="button"
               onClick={() => void pararLinea(linea)}

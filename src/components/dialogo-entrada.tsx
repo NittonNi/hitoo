@@ -3,13 +3,13 @@
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import * as Dialog from "@radix-ui/react-dialog"
-import { Check, Euro, Loader2, Trash2, X } from "lucide-react"
+import { Euro, Loader2, Trash2, X } from "lucide-react"
 
 import { createClient } from "@/lib/supabase/client"
 import { mensajeError } from "@/lib/errores"
 import { useAvisos } from "@/components/avisos"
 import { CampoHora } from "@/components/campo-hora"
-import { SelectorPersonas } from "@/components/selector-personas"
+import { SelectorPersonas, type PersonaFija } from "@/components/selector-personas"
 import { proponerHoras } from "@/lib/compartir"
 import { useSesion } from "@/components/proveedor-sesion"
 import { SelectorProyecto } from "@/components/selector-proyecto"
@@ -47,6 +47,18 @@ export function DialogoEntrada({
   const proponibles = miembros.filter(
     (m) => m.id !== entrada.user_id && m.id !== vinoDeId,
   )
+  /* Sale marcado y quieto dentro del propio selector, sin poder quitarlo: es
+     la misma persona que ya se dejó fuera de `proponibles`. */
+  const personaFija: PersonaFija[] =
+    entrada.venida_de && vinoDeId
+      ? [
+          {
+            id: vinoDeId,
+            nombre: entrada.venida_de,
+            motivo: entrada.user_id === perfil.id ? "te la propuso" : "se la propuso",
+          },
+        ]
+      : []
   const [descripcion, setDescripcion] = useState(entrada.description)
   const [proyecto, setProyecto] = useState({
     project_id: entrada.project_id,
@@ -363,30 +375,12 @@ export function DialogoEntrada({
             <span className="label">También cuenta para</span>
             {miembros.length > 0 ? (
               <>
-                {/* Quien la propuso sale marcado y quieto, fuera del selector:
-                    ahi no se le puede elegir, ni con "Todo el equipo". */}
-                {entrada.venida_de && (
-                  <p className="mb-1.5 flex items-center gap-2 px-3 text-sm opacity-60">
-                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-[3px] border border-ink bg-ink">
-                      <Check className="h-3 w-3 text-[color:var(--accent-fg)]" />
-                    </span>
-                    <span className="min-w-0 truncate">{entrada.venida_de}</span>
-                    <span className="shrink-0 text-[0.6875rem] text-muted">
-                      {entrada.user_id === perfil.id
-                        ? "te la propuso"
-                        : "se la propuso"}
-                    </span>
-                  </p>
-                )}
-                {/* Si no queda nadie más, el selector sobra (y su texto de
-                    "cuando haya más gente" seria falso) */}
-                {(proponibles.length > 0 || !entrada.venida_de) && (
-                  <SelectorPersonas
-                    miembros={proponibles}
-                    seleccionadas={compartidos}
-                    onChange={setCompartidos}
-                  />
-                )}
+                <SelectorPersonas
+                  miembros={proponibles}
+                  seleccionadas={compartidos}
+                  fijas={personaFija}
+                  onChange={setCompartidos}
+                />
                 {compartidos.length > 0 && (
                   <p className="mt-1.5 text-xs text-muted">
                     Al guardar les llegará como propuesta: hasta que la acepten
