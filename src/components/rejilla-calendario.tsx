@@ -167,6 +167,8 @@ export function RejillaCalendario({
   espacioId,
   yoId,
   miembros,
+  soloLectura = false,
+  personaVista,
 }: {
   entradas: EntradaVista[]
   /** Horas que alguien ha apuntado contando conmigo y no he contestado. */
@@ -178,6 +180,10 @@ export function RejillaCalendario({
   espacioId: string
   yoId: string
   miembros: Miembro[]
+  /** Se mira sin tocar: ni se crea, ni se arrastra, ni se abre para editar. */
+  soloLectura?: boolean
+  /** Si se mira el calendario de otra persona, su id, para no perderla al cambiar de semana. */
+  personaVista?: string
 }) {
   const router = useRouter()
   const { avisar } = useAvisos()
@@ -195,9 +201,9 @@ export function RejillaCalendario({
   const [ahora, setAhora] = useState(() => new Date())
   const [filtros, setFiltros] = useState<Filtros>(SIN_FILTROS)
 
-  /* El calendario es de uso personal: siempre son tus horas. Para mirar -o
-     corregir- las de otra persona estan los informes, que es donde eso tiene
-     sentido. */
+  /* El calendario es de uso personal: tus horas, que se tocan. Quien ve las de
+     todo el equipo puede mirar el de otra persona, pero solo mirar: corregir
+     horas ajenas se hace en informes. */
   const hoy = todayKey()
 
   const dias = useMemo(
@@ -480,7 +486,9 @@ export function RejillaCalendario({
   }
 
   function irA(nuevoLunes: string) {
-    router.push(`/calendario?semana=${nuevoLunes}`)
+    router.push(
+      `/calendario?semana=${nuevoLunes}${personaVista ? `&persona=${personaVista}` : ""}`,
+    )
   }
 
   const totalSemana = visibles.reduce((s, e) => s + (e.duration_seconds ?? 0), 0)
@@ -860,7 +868,7 @@ export function RejillaCalendario({
                   esHoy={dia === hoy}
                   bloques={porDia.get(dia) ?? []}
                   franja={franja}
-                  editable
+                  editable={!soloLectura}
                   arrastre={arrastre}
                   arrastrados={enLaMano.get(dia) ?? []}
                   ahora={ahora}
@@ -896,7 +904,7 @@ export function RejillaCalendario({
                       pinza: bloque.finReal - bloque.hasta,
                     })
                   }
-                  onAbrir={(entrada) => setEditando(entrada)}
+                  onAbrir={(entrada) => !soloLectura && setEditando(entrada)}
                   onContestar={(id) =>
                     setContestando(
                       propuestas.find((p) => MARCA + p.id === id) ?? null,
@@ -915,7 +923,7 @@ export function RejillaCalendario({
         </div>
       </div>
 
-      <p className="no-print text-xs text-muted">
+      <p className={cn("no-print text-xs text-muted", soloLectura && "hidden")}>
         <span className="hidden md:inline">
           Arrastra sobre un hueco para apuntar horas. Mueve un bloque para
           cambiarlo de hora o de día, o estira su borde de abajo para alargarlo.

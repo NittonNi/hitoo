@@ -188,7 +188,7 @@ export function ResumenCronometro({
             <DropdownMenu.Root>
               <DropdownMenu.Trigger className="rotulo group flex items-center gap-1 transition hover:text-ink">
                 {etiqueta}
-                <ChevronDown className="h-3 w-3 opacity-0 transition group-hover:opacity-100" />
+                <ChevronDown className="h-3 w-3 opacity-50 transition group-hover:opacity-100" />
               </DropdownMenu.Trigger>
               <DropdownMenu.Portal>
                 <DropdownMenu.Content

@@ -60,12 +60,15 @@ export function FilaEntrada({
   catalogo,
   miembros,
   mostrarPersona,
+  soloLectura = false,
 }: {
   entrada: EntradaVista
   catalogo: Catalogo
   /** El equipo, para poder compartir estas horas con quien haga falta. */
   miembros: Miembro[]
   mostrarPersona: boolean
+  /** Horas de otra persona: se miran, no se tocan. */
+  soloLectura?: boolean
 }) {
   const router = useRouter()
   const { arrancar } = useCronometro()
@@ -79,7 +82,7 @@ export function FilaEntrada({
   const [ocupado, setOcupado] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const bloqueada = entrada.locked
+  const bloqueada = entrada.locked || soloLectura
 
   /* Quien mas cuenta estas horas. Un punto naranja avisa de que alguien no ha
      contestado todavia. */
@@ -424,7 +427,7 @@ export function FilaEntrada({
             y no lo es -son personas, y algunas sin contestar todavia. El
             hueco se reserva siempre para que las columnas cuadren. */}
         <div className="hidden w-7 shrink-0 justify-center sm:flex">
-          <CompartirCon entrada={entrada} miembros={miembros} />
+          {!soloLectura && <CompartirCon entrada={entrada} miembros={miembros} />}
         </div>
 
         {/* --------------------------------------------------- facturable */}
@@ -506,7 +509,7 @@ export function FilaEntrada({
               abre la tarjeta entera, que es donde se edita comodo con el dedo. */}
           <button
             type="button"
-            onClick={() => setAbierta(true)}
+            onClick={() => !soloLectura && setAbierta(true)}
             className="order-1 flex min-w-0 flex-1 items-center gap-1.5 truncate py-0.5 pl-1.5 text-left text-xs text-muted md:hidden"
           >
             {entrada.project_name ? (
@@ -547,6 +550,8 @@ export function FilaEntrada({
 
         {/* ---------------------------------------------------- acciones */}
         {/* Continuar: arranca ahora mismo con lo mismo de esta entrada */}
+        {!soloLectura && (
+        <>
         <button
           type="button"
           title="Continuar con esto ahora"
@@ -606,6 +611,8 @@ export function FilaEntrada({
             </DropdownMenu.Portal>
           </DropdownMenu.Root>
         </div>
+        </>
+        )}
       </div>
 
 

@@ -324,10 +324,12 @@ export function weekLabel(mondayKey: string): string {
 
   const dia = (d: Date) => d.getDate()
   const mes = (d: Date) => d.toLocaleDateString("es-ES", { month: "long" })
+  // De otro año, con el año: con el histórico importado, «24 – 30 de marzo» no dice de cuál
+  const anio = domingo.getFullYear() !== new Date().getFullYear() ? ` de ${domingo.getFullYear()}` : ""
 
   return mismoMes
-    ? `${dia(lunes)} – ${dia(domingo)} de ${mes(domingo)}`
-    : `${dia(lunes)} de ${mes(lunes)} – ${dia(domingo)} de ${mes(domingo)}`
+    ? `${dia(lunes)} – ${dia(domingo)} de ${mes(domingo)}${anio}`
+    : `${dia(lunes)} de ${mes(lunes)} – ${dia(domingo)} de ${mes(domingo)}${anio}`
 }
 
 /** Un objetivo en minutos, escrito como el resto de duraciones: "08:00:00". */

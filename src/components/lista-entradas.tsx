@@ -1,8 +1,8 @@
 "use client"
 
-import { useMemo, useState } from "react"
-import { useRouter } from "next/navigation"
-import { ChevronRight, Euro, Play, Tag } from "lucide-react"
+import { useMemo, useState, useTransition } from "react"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { ChevronRight, Euro, Loader2, Play, Tag } from "lucide-react"
 
 import { createClient } from "@/lib/supabase/client"
 import { mensajeError } from "@/lib/errores"
@@ -14,6 +14,7 @@ import { SelectorEtiquetas } from "@/components/selector-etiquetas"
 import {
   dayLabel,
   formatClock,
+  formatDateShort,
   formatDurationShort,
   formatObjetivoCorto,
   weekKey,
@@ -77,6 +78,9 @@ export function ListaEntradas({
   mostrarPersona = false,
   objetivoDia = null,
   objetivoSemana = null,
+  soloLectura = false,
+  deQuien,
+  anteriores = null,
 }: {
   entradas: EntradaVista[]
   catalogo: Catalogo
@@ -87,6 +91,15 @@ export function ListaEntradas({
   objetivoDia?: number | null
   /** Minutos a la semana, del espacio. */
   objetivoSemana?: number | null
+  /** Las horas de otra persona: se miran, no se tocan ni se continuan. */
+  soloLectura?: boolean
+  /** Nombre de esa otra persona, para los textos. */
+  deQuien?: string
+  /**
+   * Si hay horas antes de lo cargado: el dia de la ultima de ellas y desde
+   * donde cargar para verla. Null, no queda nada atras.
+   */
+  anteriores?: { ultima: string; desde: string } | null
 }) {
   const semanas = useMemo(() => {
     const mapa = new Map<string, Map<string, EntradaVista[]>>()
@@ -111,12 +124,25 @@ export function ListaEntradas({
 
   if (semanas.length === 0) {
     return (
-      <div className="card px-6 py-12 text-center">
-        <p className="text-sm font-medium">Aquí aparecerán tus horas</p>
-        <p className="mx-auto mt-1 max-w-sm text-sm text-muted">
-          Escribe arriba en qué estás trabajando y dale al play. En modo
-          manual apuntas un rato que ya has echado.
-        </p>
+      <div className="space-y-3">
+        <div className="card px-6 py-12 text-center">
+          {deQuien || anteriores ? (
+            <p className="text-sm font-medium">
+              {deQuien
+                ? `${deQuien} no tiene horas en las últimas semanas`
+                : "No tienes horas en las últimas semanas"}
+            </p>
+          ) : (
+            <>
+              <p className="text-sm font-medium">Aquí aparecerán tus horas</p>
+              <p className="mx-auto mt-1 max-w-sm text-sm text-muted">
+                Escribe arriba en qué estás trabajando y dale al play. En modo
+                manual apuntas un rato que ya has echado.
+              </p>
+            </>
+          )}
+        </div>
+        {anteriores && <SemanasAnteriores {...anteriores} />}
       </div>
     )
   }
@@ -157,6 +183,7 @@ export function ListaEntradas({
                           catalogo={catalogo}
                           miembros={miembros}
                           mostrarPersona={mostrarPersona}
+                          soloLectura={soloLectura}
                         />
                       ) : (
                         <FilaGrupo
@@ -165,6 +192,7 @@ export function ListaEntradas({
                           catalogo={catalogo}
                           miembros={miembros}
                           mostrarPersona={mostrarPersona}
+                          soloLectura={soloLectura}
                         />
                       ),
                     )}
@@ -175,6 +203,37 @@ export function ListaEntradas({
           </section>
         )
       })}
+
+      {anteriores && <SemanasAnteriores {...anteriores} />}
+    </div>
+  )
+}
+
+/**
+ * Más semanas hacia atrás sin salir de la página: baja `desde` en la URL y el
+ * servidor trae lo que falta, así que corregir una hora vieja y refrescar sigue
+ * enseñando lo mismo. Si antes hay un hueco, salta directo a la última hora de
+ * antes del hueco: nadie quiere pulsar veinte veces por semanas vacías.
+ */
+function SemanasAnteriores({ ultima, desde }: { ultima: string; desde: string }) {
+  const router = useRouter()
+  const ruta = usePathname()
+  const parametros = useSearchParams()
+  const [cargando, empezar] = useTransition()
+
+  function verMas() {
+    const siguientes = new URLSearchParams(parametros.toString())
+    siguientes.set("desde", desde)
+    empezar(() => router.push(`${ruta}?${siguientes.toString()}`, { scroll: false }))
+  }
+
+  return (
+    <div className="flex flex-col items-center gap-1 pt-2">
+      <button type="button" onClick={verMas} disabled={cargando} className="btn">
+        {cargando && <Loader2 className="h-4 w-4 animate-spin" />}
+        {cargando ? "Cargando…" : "Ver semanas anteriores"}
+      </button>
+      <p className="text-xs text-muted">La anterior es del {formatDateShort(ultima)}</p>
     </div>
   )
 }
@@ -195,11 +254,13 @@ function FilaGrupo({
   catalogo,
   miembros,
   mostrarPersona,
+  soloLectura,
 }: {
   grupo: Grupo
   catalogo: Catalogo
   miembros: Miembro[]
   mostrarPersona: boolean
+  soloLectura: boolean
 }) {
   const router = useRouter()
   const { arrancar } = useCronometro()
@@ -214,7 +275,7 @@ function FilaGrupo({
   const total = segundosDe(entradas)
   const cuantos = entradas.length
   // Con una cerrada, el grupo entero no se toca: se abre y se edita lo de dentro
-  const bloqueado = entradas.some((e) => e.locked)
+  const bloqueado = soloLectura || entradas.some((e) => e.locked)
 
   /* La descripcion solo se enseña si es la de todos. Si no, la fila pide una,
      igual que cuando no hay ninguna, y lo que se escriba cae en todos; la de
@@ -657,28 +718,32 @@ function FilaGrupo({
             </span>
           </p>
 
-        <button
-          type="button"
-          title="Continuar con esto ahora"
-          onClick={() =>
-            void arrancar({
-              project_id: primera.project_id,
-              edition_id: primera.edition_id,
-              task_id: tarea === null ? null : primera.task_id,
-              description: descripcion ?? "",
-              billable: facturable === true,
-              tagIds: etiquetasPuestas,
-            })
-          }
-          /* Naranja, que en esta casa es el color de lo que corre: el play es lo
-            unico de la fila que pone el cronometro en marcha */
-          className="order-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-[6px] text-live transition hover:bg-live-soft md:order-none md:h-auto md:w-auto md:px-2 md:py-1.5"
-        >
-          <Play className="h-3.5 w-3.5 fill-current" />
-        </button>
+        {!soloLectura && (
+          <button
+            type="button"
+            title="Continuar con esto ahora"
+            onClick={() =>
+              void arrancar({
+                project_id: primera.project_id,
+                edition_id: primera.edition_id,
+                task_id: tarea === null ? null : primera.task_id,
+                description: descripcion ?? "",
+                billable: facturable === true,
+                tagIds: etiquetasPuestas,
+              })
+            }
+            /* Naranja, que en esta casa es el color de lo que corre: el play es lo
+              unico de la fila que pone el cronometro en marcha */
+            className="order-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-[6px] text-live transition hover:bg-live-soft md:order-none md:h-auto md:w-auto md:px-2 md:py-1.5"
+          >
+            <Play className="h-3.5 w-3.5 fill-current" />
+          </button>
+        )}
 
         {/* Hueco de los tres puntos: cada rato tiene los suyos dentro */}
-        <span className="order-4 w-10 shrink-0 md:order-none md:w-8" aria-hidden />
+        {!soloLectura && (
+          <span className="order-4 w-10 shrink-0 md:order-none md:w-8" aria-hidden />
+        )}
       </div>
 
 
@@ -693,6 +758,7 @@ function FilaGrupo({
               catalogo={catalogo}
               miembros={miembros}
               mostrarPersona={mostrarPersona}
+              soloLectura={soloLectura}
             />
           ))}
         </ul>

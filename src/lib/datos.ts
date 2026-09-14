@@ -117,6 +117,31 @@ export async function cargarEntradas(opciones: {
 }
 
 /**
+ * El día de la última hora terminada de una persona antes de `antesDe`, o null.
+ * Con horas viejas y un hueco largo -una plaza de Clockify de hace un año-,
+ * «semanas anteriores» salta hasta ahí en vez de ir de cuatro en cuatro por
+ * semanas vacías.
+ */
+export async function ultimaFechaAntes(
+  espacioId: string,
+  userId: string,
+  antesDe: string,
+): Promise<string | null> {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from("time_entries")
+    .select("local_date")
+    .eq("workspace_id", espacioId)
+    .eq("user_id", userId)
+    .not("end_at", "is", null)
+    .lt("local_date", antesDe)
+    .order("local_date", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  return data?.local_date ?? null
+}
+
+/**
  * Las horas de un periodo largo para estadísticas, en una sola llamada
  * (`entradas_estadisticas`). Por `v_entries` la RLS se mira fila a fila: dos
  * años de NITTON eran 17 s; así, un cuarto de segundo. No trae la descripción
@@ -147,6 +172,19 @@ export async function cargarEntradasEstadisticas(
     venida_de: null,
     venida_de_id: null,
   }))
+}
+
+/**
+ * Si el espacio tiene alguna tarifa. Sin ninguna, todo importe sale a 0 € y es
+ * mejor decir «sin tarifas» que pintar ceros que parecen un dato.
+ */
+export async function hayTarifas(espacioId: string): Promise<boolean> {
+  const supabase = await createClient()
+  const { count } = await supabase
+    .from("rates")
+    .select("id", { count: "exact", head: true })
+    .eq("workspace_id", espacioId)
+  return (count ?? 0) > 0
 }
 
 /** Horas que otra persona ha apuntado contando conmigo, sin contestar todavía. */

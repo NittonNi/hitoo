@@ -38,6 +38,7 @@ Next.js 16.3 (App Router, `src/proxy.ts`), React 19, Tailwind v4, Radix sin esti
 - **Permisos de funciones**: revocar `EXECUTE` a `anon` o `authenticated` no sirve si está concedido a `PUBLIC`, que es lo que hace Postgres por defecto. `is_admin`, `is_member` y compañía los usan las políticas RLS: no se tocan.
 - **`UNIQUE` con NULL**: Postgres trata cada NULL como distinto; para «uno solo sin edición» hace falta un índice parcial.
 - **Next 16 cambia APIs**: antes de usar una, mirar `node_modules/next/dist/docs/`.
+- **Un actualizador de `setState` corre dos veces en desarrollo** (modo estricto): nada de mutar un `ref` dentro, o la segunda pasada deshace la primera. Se calcula fuera y se pasa el resultado.
 - **El dev server a veces no recarga un módulo cliente**, aunque se edite y se reinicie. Antes de dar por roto un componente nuevo, comprobar con una sonda que el código nuevo está vivo.
 - **Datos reales**: el espacio NITTON es de verdad. Lo que se cree para probar se borra al terminar y se comprueba por SQL. Nunca se contacta a nadie ni se tocan datos de otros sin permiso.
 
