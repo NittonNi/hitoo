@@ -19,6 +19,7 @@ export default async function LayoutGestion({
     { href: "/gestion/equipo", etiqueta: "Equipo" },
     { href: "/gestion/tarifas", etiqueta: "Tarifas", soloAdmin: true },
     { href: "/gestion/importar", etiqueta: "Importar" },
+    { href: "/gestion/holded", etiqueta: "Holded" },
     { href: "/gestion/ajustes", etiqueta: "Ajustes", soloAdmin: true },
     { href: "/gestion/suscripcion", etiqueta: "Cuota", soloAdmin: true },
   ].filter((e) => !e.soloAdmin || rol === "admin")

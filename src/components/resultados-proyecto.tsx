@@ -9,6 +9,12 @@ export type Resultado = {
   income: number
   expenses: number
   notes: string
+  /** Enlazado con Holded: entonces `income` y `expenses` son Holded más los ajustes. */
+  holded_project_id?: string | null
+  holded_income?: number | null
+  holded_expenses?: number | null
+  holded_synced_at?: string | null
+  holded_cancelled?: unknown
 }
 
 /**

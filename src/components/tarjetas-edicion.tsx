@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   Archive,
   Euro,
+  Link2,
   Loader2,
   Plus,
   RotateCcw,
@@ -17,7 +18,9 @@ import { mensajeError } from "@/lib/errores"
 import { useAvisos } from "@/components/avisos"
 import { formatDateShort, formatDurationShort, formatMoney, todayKey } from "@/lib/time"
 import type { Edicion, EntradaVista } from "@/lib/tipos"
+import type { DatosHolded } from "@/lib/holded"
 import type { Resultado } from "@/components/resultados-proyecto"
+import { DesgloseHolded, EnlazarHolded } from "@/components/cierre-holded"
 import { cn } from "@/lib/utils"
 
 /**
@@ -29,6 +32,8 @@ import { cn } from "@/lib/utils"
 export function TarjetasEdicion({
   espacioId,
   proyectoId,
+  nombreProyecto,
+  holded,
   ediciones,
   entradas,
   resultados,
@@ -39,6 +44,9 @@ export function TarjetasEdicion({
 }: {
   espacioId: string
   proyectoId: string
+  nombreProyecto: string
+  /** Null si quien mira no ve importes. */
+  holded: DatosHolded | null
   ediciones: Edicion[]
   entradas: EntradaVista[]
   resultados: Resultado[]
@@ -138,6 +146,8 @@ export function TarjetasEdicion({
         <Tarjeta
           espacioId={espacioId}
           proyectoId={proyectoId}
+          nombreProyecto={nombreProyecto}
+          holded={holded}
           edicion={null}
           titulo="Todo el proyecto"
           entradas={sueltas}
@@ -155,6 +165,8 @@ export function TarjetasEdicion({
               key={edicion.id}
               espacioId={espacioId}
               proyectoId={proyectoId}
+              nombreProyecto={nombreProyecto}
+              holded={holded}
               edicion={edicion}
               entradas={entradas.filter((e) => e.edition_id === edicion.id)}
               vida={vida}
@@ -172,6 +184,8 @@ export function TarjetasEdicion({
             <Tarjeta
               espacioId={espacioId}
               proyectoId={proyectoId}
+              nombreProyecto={nombreProyecto}
+              holded={holded}
               edicion={null}
               titulo="Resultado del proyecto"
               entradas={sueltas}
@@ -238,6 +252,8 @@ export function TarjetasEdicion({
 function Tarjeta({
   espacioId,
   proyectoId,
+  nombreProyecto,
+  holded,
   edicion,
   titulo,
   entradas,
@@ -250,6 +266,8 @@ function Tarjeta({
 }: {
   espacioId: string
   proyectoId: string
+  nombreProyecto: string
+  holded: DatosHolded | null
   /** Null: la tarjeta es el proyecto entero. */
   edicion: Edicion | null
   /** Como se llama cuando no es una edicion. */
@@ -266,6 +284,7 @@ function Tarjeta({
   const router = useRouter()
   const { avisar } = useAvisos()
   const [editando, setEditando] = useState(false)
+  const [enlazando, setEnlazando] = useState(false)
   const [ingresos, setIngresos] = useState("")
   const [gastos, setGastos] = useState("")
   const [ocupado, setOcupado] = useState(false)
@@ -295,6 +314,8 @@ function Tarjeta({
       : null
   const faltanHoras = Boolean(resultado) && horasCobrables < 1
   const llega = porHora !== null && objetivoHora ? porHora >= objetivoHora : null
+  /** Como se llamaría en Holded: «Proyecto Edición». */
+  const nombreCierre = edicion ? `${nombreProyecto} ${edicion.name}` : nombreProyecto
 
   function aNumero(texto: string) {
     const limpio = texto.trim().replace(/\s|€/g, "").replace(",", ".")
@@ -537,56 +558,141 @@ function Tarjeta({
                 </button>
               </div>
             </div>
+          ) : resultado?.holded_project_id && holded ? (
+            /* Enlazado: las cifras salen de Holded y de los ajustes, nunca a mano */
+            <div className="space-y-3">
+              <DesgloseHolded
+                espacioId={espacioId}
+                resultado={resultado}
+                holded={holded}
+                puedeGestionar={puedeGestionar}
+              />
+              <div className="border-t border-line pt-2">
+                <Neto
+                  resultado={resultado}
+                  neto={neto!}
+                  porHora={porHora}
+                  faltanHoras={faltanHoras}
+                  llega={llega}
+                  objetivoHora={objetivoHora}
+                />
+              </div>
+            </div>
+          ) : enlazando ? (
+            <EnlazarHolded
+              proyectoId={proyectoId}
+              edicionId={edicion?.id ?? null}
+              nombre={nombreCierre}
+              holded={holded!}
+              onCerrar={() => setEnlazando(false)}
+            />
           ) : resultado ? (
-            <div className="flex flex-wrap items-end justify-between gap-2">
-              <div className="min-w-0">
-                <p className="cifra text-sm">
-                  {formatMoney(Number(resultado.income))}
-                  <span className="text-muted">
-                    {" − "}
-                    {formatMoney(Number(resultado.expenses))} ={" "}
-                  </span>
-                  <span className={cn("font-semibold", neto! < 0 && "text-danger")}>
-                    {formatMoney(neto!)}
-                  </span>
-                </p>
-                {porHora === null && faltanHoras && (
-                  <p className="text-xs text-muted">
-                    faltan horas con el euro para sacar el €/h
-                  </p>
-                )}
-                {porHora !== null && (
-                  <p
-                    className={cn(
-                      "cifra text-lg font-semibold leading-tight",
-                      llega === null ? "" : llega ? "text-billable" : "text-danger",
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-end justify-between gap-2">
+                <Neto
+                  resultado={resultado}
+                  neto={neto!}
+                  porHora={porHora}
+                  faltanHoras={faltanHoras}
+                  llega={llega}
+                  objetivoHora={objetivoHora}
+                />
+                {puedeGestionar && (
+                  <div className="flex shrink-0 gap-1.5">
+                    {holded?.conectado && (
+                      <button
+                        type="button"
+                        onClick={() => setEnlazando(true)}
+                        className="btn h-8 text-xs"
+                      >
+                        <Link2 className="h-3.5 w-3.5" />
+                        Holded
+                      </button>
                     )}
-                    title={
-                      objetivoHora ? `Objetivo: ${objetivoHora} €/h` : undefined
-                    }
-                  >
-                    {porHora.toLocaleString("es-ES", { maximumFractionDigits: 0 })}{" "}
-                    €/h
-                  </p>
+                    <button type="button" onClick={abrir} className="btn h-8 text-xs">
+                      Cambiar
+                    </button>
+                  </div>
                 )}
               </div>
-              {puedeGestionar && (
-                <button type="button" onClick={abrir} className="btn h-8 text-xs">
-                  Cambiar
-                </button>
+              {holded?.conectado && puedeGestionar && (
+                <p className="text-xs text-muted">
+                  Apuntado a mano. Enlázalo con Holded y las cifras llegarán solas.
+                </p>
               )}
             </div>
           ) : (
-            puedeGestionar && (
+            puedeGestionar &&
+            (holded?.conectado ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEnlazando(true)}
+                  className="btn btn-primary h-8 flex-1 text-xs"
+                >
+                  <Link2 className="h-3.5 w-3.5" />
+                  Enlazar con Holded
+                </button>
+                <button type="button" onClick={abrir} className="btn h-8 text-xs">
+                  Apuntar a mano
+                </button>
+              </div>
+            ) : (
               <button type="button" onClick={abrir} className="btn h-8 w-full text-xs">
                 <Euro className="h-3.5 w-3.5" />
                 Apuntar el resultado
               </button>
-            )
+            ))
           )}
         </div>
       )}
     </article>
+  )
+}
+
+/** Ingresos − gastos = neto, y el €/h si hay horas para sacarlo. */
+function Neto({
+  resultado,
+  neto,
+  porHora,
+  faltanHoras,
+  llega,
+  objetivoHora,
+}: {
+  resultado: Resultado
+  neto: number
+  porHora: number | null
+  faltanHoras: boolean
+  llega: boolean | null
+  objetivoHora: number | null
+}) {
+  return (
+    <div className="min-w-0">
+      <p className="cifra text-sm">
+        {formatMoney(Number(resultado.income))}
+        <span className="text-muted">
+          {" − "}
+          {formatMoney(Number(resultado.expenses))} ={" "}
+        </span>
+        <span className={cn("font-semibold", neto < 0 && "text-danger")}>
+          {formatMoney(neto)}
+        </span>
+      </p>
+      {porHora === null && faltanHoras && (
+        <p className="text-xs text-muted">faltan horas con el euro para sacar el €/h</p>
+      )}
+      {porHora !== null && (
+        <p
+          className={cn(
+            "cifra text-lg font-semibold leading-tight",
+            llega === null ? "" : llega ? "text-billable" : "text-danger",
+          )}
+          title={objetivoHora ? `Objetivo: ${objetivoHora} €/h` : undefined}
+        >
+          {porHora.toLocaleString("es-ES", { maximumFractionDigits: 0 })} €/h
+        </p>
+      )}
+    </div>
   )
 }
 

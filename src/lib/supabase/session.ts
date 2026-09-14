@@ -20,6 +20,7 @@ const PUBLIC_PATHS = [
   "/condiciones",
   "/aviso-legal",
   "/api/stripe/webhook",
+  "/api/holded/cron",
 ]
 
 export async function updateSession(request: NextRequest) {

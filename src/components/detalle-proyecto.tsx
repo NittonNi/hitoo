@@ -42,6 +42,7 @@ import {
   resumenDeResultados,
   type Resultado,
 } from "@/components/resultados-proyecto"
+import type { DatosHolded } from "@/lib/holded"
 import { ObjetivoDelProyecto } from "@/components/objetivo-hora"
 import { ResumenProyecto } from "@/components/resumen-proyecto"
 import { TarjetasEdicion } from "@/components/tarjetas-edicion"
@@ -87,6 +88,7 @@ export function DetalleProyecto({
   espacioId,
   puedeGestionar,
   puedeVerImportes,
+  holded,
 }: {
   proyecto: Proyecto
   categorias: Categoria[]
@@ -102,6 +104,8 @@ export function DetalleProyecto({
   espacioId: string
   puedeGestionar: boolean
   puedeVerImportes: boolean
+  /** Lo de Holded; null si quien mira no ve importes. */
+  holded: DatosHolded | null
 }) {
   const parametros = useSearchParams()
 
@@ -270,6 +274,8 @@ export function DetalleProyecto({
         <TarjetasEdicion
           espacioId={espacioId}
           proyectoId={proyecto.id}
+          nombreProyecto={proyecto.name}
+          holded={holded}
           ediciones={ediciones}
           entradas={cerradas}
           resultados={resultados}

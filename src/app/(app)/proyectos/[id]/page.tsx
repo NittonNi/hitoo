@@ -4,6 +4,7 @@ import { getSesion } from "@/lib/sesion"
 import { puedeGestionar, veTodo } from "@/lib/roles"
 import { cargarCatalogo, cargarEntradas, cargarMiembros } from "@/lib/datos"
 import { createClient } from "@/lib/supabase/server"
+import { cargarHoldedDeProyecto } from "@/lib/holded-datos"
 import { DetalleProyecto } from "@/components/detalle-proyecto"
 import type { Resultado } from "@/components/resultados-proyecto"
 import { todayKey } from "@/lib/time"
@@ -46,7 +47,9 @@ export default async function PaginaProyecto({
     }),
     supabase
       .from("project_results")
-      .select("id, edition_id, label, starts_on, ends_on, income, expenses, notes")
+      .select(
+        "id, edition_id, label, starts_on, ends_on, income, expenses, notes, holded_project_id, holded_income, holded_expenses, holded_synced_at, holded_cancelled",
+      )
       .eq("project_id", id)
       .order("starts_on", { ascending: false }),
     cargarMiembros(espacio.id),
@@ -56,6 +59,15 @@ export default async function PaginaProyecto({
   if (!proyecto) notFound()
 
   const ediciones = catalogo.ediciones.filter((e) => e.project_id === id)
+
+  // Solo para quien ve importes: a los demás, la RLS no les daría nada
+  const holded = gestor
+    ? await cargarHoldedDeProyecto(
+        espacio.id,
+        (resultados.data ?? []).map((r) => r.id),
+        miembros,
+      )
+    : null
 
   return (
     <DetalleProyecto
@@ -71,6 +83,7 @@ export default async function PaginaProyecto({
       espacioId={espacio.id}
       puedeGestionar={puedeGestionar(rol)}
       puedeVerImportes={gestor}
+      holded={holded}
     />
   )
 }
