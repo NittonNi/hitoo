@@ -37,6 +37,12 @@ const LOTE = 200
  */
 const TAMANO_PAGINA = 1000
 const OMITIR = "__omitir__"
+/**
+ * Quien aún no tiene cuenta entra como plaza con sus horas
+ * (`crear_plaza_con_horas`): al unirse con el enlace y elegir su nombre, se
+ * las lleva.
+ */
+const CREAR = "__crear__"
 
 type Resultado = {
   insertadas: number
@@ -44,6 +50,7 @@ type Resultado = {
   omitidas: number
   etiquetasSinAplicar: number
   creados: {
+    plazas: number
     areas: number
     proyectos: number
     tareas: number
@@ -189,8 +196,9 @@ export function ImportadorClockify({
 
   const personas = useMemo(() => personasDe(combinado.filas), [combinado])
 
-  // Cada persona nueva que aparece se enchufa a quien tenga el mismo correo;
-  // lo que el admin ya haya decidido para otra no se toca.
+  // Cada persona nueva que aparece se enchufa a quien tenga el mismo correo, y
+  // si no hay nadie, a una plaza con sus horas; lo que el admin ya haya
+  // decidido para otra no se toca.
   useEffect(() => {
     setAsignacion((actual) => {
       let cambio = false
@@ -203,7 +211,7 @@ export function ImportadorClockify({
             m.email.toLowerCase() === persona.email.toLowerCase(),
         )
         siguiente[persona.clave] = esAdmin
-          ? (encontrado?.id ?? OMITIR)
+          ? (encontrado?.id ?? CREAR)
           : encontrado?.id === yoId
             ? yoId
             : OMITIR
@@ -248,11 +256,29 @@ export function ImportadorClockify({
     setResultado(null)
 
     const supabase = createClient()
-    const creados = { areas: 0, proyectos: 0, tareas: 0, etiquetas: 0 }
+    const creados = { plazas: 0, areas: 0, proyectos: 0, tareas: 0, etiquetas: 0 }
     let insertadas = 0
     let etiquetasSinAplicar = 0
+    const destinos: Record<string, string> = { ...asignacion }
 
     try {
+      /* --------------------------------------- plazas de quien no tiene cuenta */
+      const sinCuenta = personas.filter((p) => asignacion[p.clave] === CREAR)
+      if (sinCuenta.length > 0) {
+        setProgreso({ etapa: "Creando plazas…", porcentaje: null })
+        for (const persona of sinCuenta) {
+          const { data, error: err } = await supabase.rpc("crear_plaza_con_horas", {
+            p_workspace: espacioId,
+            p_nombre: persona.nombre,
+            p_email: persona.email || undefined,
+          })
+          if (err) throw err
+          if (!data) throw new Error(`No se ha podido crear la plaza de ${persona.nombre}.`)
+          destinos[persona.clave] = data
+          creados.plazas++
+        }
+      }
+
       /* ------------------------------------------------ catalogo que falta */
       const areasMapa = new Map(
         catalogo.categorias.filter((c) => !c.parent_id).map((c) => [normalizar(c.name), c.id]),
@@ -362,7 +388,7 @@ export function ImportadorClockify({
               : null
           return {
             workspace_id: espacioId,
-            user_id: asignacion[(fila.email || fila.usuario || "?").toLowerCase()],
+            user_id: destinos[(fila.email || fila.usuario || "?").toLowerCase()],
             project_id: proyectoId,
             task_id: tareaId,
             description: fila.descripcion,
@@ -531,7 +557,9 @@ export function ImportadorClockify({
 
             {resumen && crearFaltantes && (
               <p className="mt-3 text-xs text-muted">
-                Se crearán {faltante.areas.length} áreas,{" "}
+                Se crearán{" "}
+                {personas.filter((p) => asignacion[p.clave] === CREAR).length}{" "}
+                plazas, {faltante.areas.length} áreas,{" "}
                 {faltante.proyectos.length} proyectos, {faltante.tareas.length}{" "}
                 tareas y {faltante.etiquetas.length} etiquetas que no existen
                 aún.
@@ -569,7 +597,7 @@ export function ImportadorClockify({
             <h2 className="mb-1 text-sm font-semibold">Personas</h2>
             <p className="mb-3 text-xs text-muted">
               {esAdmin
-                ? "Empareja cada persona del informe con su cuenta. Lo que dejes sin asignar no se importa."
+                ? "Empareja cada persona del informe con su cuenta. Quien aún no tenga cuenta entra como plaza con sus horas: cuando se una con el enlace y elija su nombre, se las lleva."
                 : "Solo puedes importar tus propias horas. Pide a un administrador que importe las del resto."}
             </p>
 
@@ -593,6 +621,7 @@ export function ImportadorClockify({
                     }
                   >
                     <option value={OMITIR}>No importar</option>
+                    {esAdmin && <option value={CREAR}>Plaza con sus horas</option>}
                     {(esAdmin ? miembros : miembros.filter((m) => m.id === yoId)).map(
                       (miembro) => (
                         <option key={miembro.id} value={miembro.id}>
@@ -640,7 +669,8 @@ export function ImportadorClockify({
                     {resultado.duplicadas} ya estaban de una importación anterior
                     {resultado.omitidas > 0 &&
                       `, ${resultado.omitidas} omitidas por no tener persona asignada`}
-                    . Se crearon {resultado.creados.areas} áreas,{" "}
+                    . Se crearon {resultado.creados.plazas} plazas,{" "}
+                    {resultado.creados.areas} áreas,{" "}
                     {resultado.creados.proyectos} proyectos,{" "}
                     {resultado.creados.tareas} tareas y{" "}
                     {resultado.creados.etiquetas} etiquetas.

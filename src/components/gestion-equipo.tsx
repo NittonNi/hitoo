@@ -15,6 +15,7 @@ const ROLES: { valor: Rol; ayuda: string }[] = [
   { valor: "admin", ayuda: "Todo, incluidas tarifas y equipo" },
   { valor: "manager", ayuda: "Ve las horas de todos y el catalogo" },
   { valor: "member", ayuda: "Solo sus propias horas" },
+  { valor: "coach", ayuda: "Ve todo el equipo, sin apuntar ni cambiar nada" },
 ]
 
 export function GestionEquipo({

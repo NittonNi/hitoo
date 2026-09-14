@@ -20,10 +20,13 @@ export function Unirse({
 }: {
   codigo: string
   espacio: string
-  plazas: { id: string; nombre: string }[]
+  plazas: { id: string; nombre: string; sugerida: boolean; con_horas: boolean }[]
 }) {
   const router = useRouter()
-  const [elegida, setElegida] = useState<string | null>(null)
+  // Si el correo con el que entras es el de una plaza, ya viene elegida
+  const [elegida, setElegida] = useState<string | null>(
+    plazas.find((p) => p.sugerida)?.id ?? null,
+  )
   const [ocupado, setOcupado] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -78,8 +81,15 @@ export function Unirse({
                       : "border-line hover:bg-surface-2",
                   )}
                 >
-                  <span className="min-w-0 flex-1 truncate font-medium">
-                    {plaza.nombre}
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium">{plaza.nombre}</span>
+                    {plaza.con_horas && (
+                      <span className="block text-xs text-muted">
+                        {elegida === plaza.id
+                          ? "Sus horas ya apuntadas pasan a tu cuenta"
+                          : "Con horas ya apuntadas"}
+                      </span>
+                    )}
                   </span>
                   {elegida === plaza.id && (
                     <Check className="h-4 w-4 shrink-0 text-accent" />

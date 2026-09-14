@@ -1,8 +1,9 @@
 import Link from "next/link"
 import { cookies } from "next/headers"
+import { redirect } from "next/navigation"
 
 import { getSesion } from "@/lib/sesion"
-import { veTodo } from "@/lib/roles"
+import { puedeGestionar, soloMira } from "@/lib/roles"
 import {
   cargarCatalogo,
   cargarEntradas,
@@ -22,6 +23,8 @@ export const metadata = { title: "Cronómetro" }
 
 export default async function PaginaCronometro() {
   const { perfil, espacio, rol } = await getSesion()
+  // El coach no apunta horas: entra directo a ver cómo va el equipo
+  if (soloMira(rol)) redirect("/estadisticas")
   const hoy = todayKey(espacio.timezone)
   const lunes = toDateKey(startOfWeek(new Date(), espacio.timezone))
   const inicioMes = toDateKey(new Date(new Date().getFullYear(), new Date().getMonth(), 1))
@@ -108,12 +111,12 @@ export default async function PaginaCronometro() {
           <div className="min-w-0 flex-1">
             <p className="text-sm font-medium">Aún no hay proyectos</p>
             <p className="mt-0.5 text-sm text-muted">
-              {veTodo(rol)
+              {puedeGestionar(rol)
                 ? "Las horas se apuntan contra un proyecto. Crea el primero y ya puedes cronometrar."
                 : "Las horas se apuntan contra un proyecto. Pide a un administrador que cree los del equipo."}
             </p>
           </div>
-          {veTodo(rol) && (
+          {puedeGestionar(rol) && (
             <Link href="/gestion" className="btn btn-primary">
               Crear proyecto
             </Link>

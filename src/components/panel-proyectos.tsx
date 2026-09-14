@@ -76,13 +76,17 @@ export function PanelProyectos({
   categorias,
   resumen,
   gestor,
+  puedeCrear,
 }: {
   espacioId: string
   proyectos: Proyecto[]
   tareas: Tarea[]
   categorias: Categoria[]
   resumen: ResumenProyecto[]
+  /** Ve las horas y los importes de todo el equipo. */
   gestor: boolean
+  /** Crea proyectos: el coach ve como un gestor, pero no crea. */
+  puedeCrear: boolean
 }) {
   const vista = useSyncExternalStore(suscribir, leerVista, () => "lista" as Vista)
   const [busqueda, setBusqueda] = useState("")
@@ -375,7 +379,7 @@ export function PanelProyectos({
         {/* Siempre al final de su fila: con los filtros puestos la barra se
             parte en dos y el boton de crear no puede quedar suelto a la
             izquierda, debajo del primer desplegable. */}
-        {gestor && (
+        {puedeCrear && (
           <div className="ml-auto">
             <NuevoProyecto espacioId={espacioId} categorias={categorias} />
           </div>
@@ -391,7 +395,7 @@ export function PanelProyectos({
           <p className="mx-auto mt-1 max-w-sm text-sm text-muted">
             {hayFiltros
               ? "Prueba a quitar algún filtro. Se busca por nombre y por la categoría."
-              : gestor
+              : puedeCrear
                 ? "Crea el primero y ya puedes empezar a apuntar horas contra él."
                 : "Pide a un administrador que cree los del equipo."}
           </p>

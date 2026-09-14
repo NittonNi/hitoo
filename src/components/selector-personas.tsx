@@ -23,7 +23,7 @@ export type PersonaFija = {
  * le llega una propuesta que tiene que aceptar.
  */
 export function SelectorPersonas({
-  miembros,
+  miembros: todos,
   seleccionadas,
   fijas = [],
   onChange,
@@ -33,6 +33,9 @@ export function SelectorPersonas({
   fijas?: PersonaFija[]
   onChange: (ids: string[]) => void
 }) {
+  // Una plaza sin cuenta no puede entrar a aceptar la propuesta
+  const miembros = todos.filter((m) => !m.sin_cuenta)
+
   if (miembros.length === 0 && fijas.length === 0) {
     return (
       <p className="text-xs text-muted">

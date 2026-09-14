@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation"
 
 import { getSesion } from "@/lib/sesion"
-import { veTodo } from "@/lib/roles"
+import { puedeGestionar, veTodo } from "@/lib/roles"
 import { cargarCatalogo, cargarEntradas, cargarMiembros } from "@/lib/datos"
 import { createClient } from "@/lib/supabase/server"
 import { DetalleProyecto } from "@/components/detalle-proyecto"
@@ -68,7 +68,7 @@ export default async function PaginaProyecto({
       miembros={miembros.filter((m) => m.active)}
       objetivoDelEquipo={espacio.target_hourly_rate}
       espacioId={espacio.id}
-      puedeGestionar={gestor}
+      puedeGestionar={puedeGestionar(rol)}
       puedeVerImportes={gestor}
     />
   )

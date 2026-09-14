@@ -17,7 +17,7 @@ import { Armazon } from "@/components/armazon"
 import { ProveedorAvisos } from "@/components/avisos"
 import { GuiaInicial } from "@/components/guia-inicial"
 import { EsqueletoMarco } from "@/components/esqueleto-marco"
-import { veTodo } from "@/lib/roles"
+import { puedeGestionar } from "@/lib/roles"
 import { getSuscripcion } from "@/lib/suscripcion"
 import { AvisoCuota } from "@/components/aviso-cuota"
 import { AvisoOlvido } from "@/components/aviso-olvido"
@@ -108,7 +108,7 @@ async function MarcoSesion({
           <AvisoCuota suscripcion={suscripcion} rol={sesion.rol} />
           {children}
         </Armazon>
-        <GuiaInicial perfilId={sesion.perfil.id} esGestor={veTodo(sesion.rol)} />
+        <GuiaInicial perfilId={sesion.perfil.id} esGestor={puedeGestionar(sesion.rol)} />
       </ProveedorCronometro>
     </ProveedorSesion>
   )

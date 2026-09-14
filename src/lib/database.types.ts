@@ -235,6 +235,102 @@ export type Database = {
           },
         ]
       }
+      holded_connections: {
+        Row: {
+          connected_at: string
+          connected_by: string | null
+          key_last4: string
+          last_error: string | null
+          last_synced_at: string | null
+          usage_count: number | null
+          usage_limit: number | null
+          workspace_id: string
+        }
+        Insert: {
+          connected_at?: string
+          connected_by?: string | null
+          key_last4: string
+          last_error?: string | null
+          last_synced_at?: string | null
+          usage_count?: number | null
+          usage_limit?: number | null
+          workspace_id: string
+        }
+        Update: {
+          connected_at?: string
+          connected_by?: string | null
+          key_last4?: string
+          last_error?: string | null
+          last_synced_at?: string | null
+          usage_count?: number | null
+          usage_limit?: number | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "holded_connections_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: true
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      holded_credentials: {
+        Row: {
+          api_key: string
+          workspace_id: string
+        }
+        Insert: {
+          api_key: string
+          workspace_id: string
+        }
+        Update: {
+          api_key?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "holded_credentials_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: true
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      holded_projects: {
+        Row: {
+          holded_id: string
+          name: string
+          start_date: string | null
+          synced_at: string
+          workspace_id: string
+        }
+        Insert: {
+          holded_id: string
+          name: string
+          start_date?: string | null
+          synced_at?: string
+          workspace_id: string
+        }
+        Update: {
+          holded_id?: string
+          name?: string
+          start_date?: string | null
+          synced_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "holded_projects_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invitations: {
         Row: {
           accepted_at: string | null
@@ -289,6 +385,7 @@ export type Database = {
           email: string
           full_name: string
           id: string
+          sin_cuenta: boolean
           updated_at: string
         }
         Insert: {
@@ -296,6 +393,7 @@ export type Database = {
           email: string
           full_name?: string
           id: string
+          sin_cuenta?: boolean
           updated_at?: string
         }
         Update: {
@@ -303,6 +401,7 @@ export type Database = {
           email?: string
           full_name?: string
           id?: string
+          sin_cuenta?: boolean
           updated_at?: string
         }
         Relationships: []
@@ -439,6 +538,11 @@ export type Database = {
           edition_id: string | null
           ends_on: string
           expenses: number
+          holded_cancelled: Json
+          holded_expenses: number | null
+          holded_income: number | null
+          holded_project_id: string | null
+          holded_synced_at: string | null
           id: string
           income: number
           label: string
@@ -453,6 +557,11 @@ export type Database = {
           edition_id?: string | null
           ends_on: string
           expenses?: number
+          holded_cancelled?: Json
+          holded_expenses?: number | null
+          holded_income?: number | null
+          holded_project_id?: string | null
+          holded_synced_at?: string | null
           id?: string
           income?: number
           label?: string
@@ -467,6 +576,11 @@ export type Database = {
           edition_id?: string | null
           ends_on?: string
           expenses?: number
+          holded_cancelled?: Json
+          holded_expenses?: number | null
+          holded_income?: number | null
+          holded_project_id?: string | null
+          holded_synced_at?: string | null
           id?: string
           income?: number
           label?: string
@@ -615,6 +729,57 @@ export type Database = {
           },
           {
             foreignKeyName: "rates_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      result_adjustments: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string | null
+          field: string
+          holded_document: string | null
+          id: string
+          note: string
+          result_id: string
+          workspace_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by?: string | null
+          field: string
+          holded_document?: string | null
+          id?: string
+          note: string
+          result_id: string
+          workspace_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string | null
+          field?: string
+          holded_document?: string | null
+          id?: string
+          note?: string
+          result_id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "result_adjustments_result_id_fkey"
+            columns: ["result_id"]
+            isOneToOne: false
+            referencedRelation: "project_results"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "result_adjustments_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "workspaces"
@@ -1045,30 +1210,43 @@ export type Database = {
           claimed_at: string | null
           claimed_by: string | null
           created_at: string
+          email: string | null
           id: string
           name: string
+          provisional_id: string | null
           workspace_id: string
         }
         Insert: {
           claimed_at?: string | null
           claimed_by?: string | null
           created_at?: string
+          email?: string | null
           id?: string
           name: string
+          provisional_id?: string | null
           workspace_id: string
         }
         Update: {
           claimed_at?: string | null
           claimed_by?: string | null
           created_at?: string
+          email?: string | null
           id?: string
           name?: string
+          provisional_id?: string | null
           workspace_id?: string
         }
         Relationships: [
           {
             foreignKeyName: "workspace_seats_claimed_by_fkey"
             columns: ["claimed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workspace_seats_provisional_id_fkey"
+            columns: ["provisional_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -1292,6 +1470,10 @@ export type Database = {
       can_edit_entry: { Args: { p_entry: string }; Returns: boolean }
       can_read_entry: { Args: { p_entry: string }; Returns: boolean }
       can_see_all: { Args: { p_workspace: string }; Returns: boolean }
+      crear_plaza_con_horas: {
+        Args: { p_email?: string; p_nombre: string; p_workspace: string }
+        Returns: string
+      }
       create_workspace: {
         Args: { p_name: string; p_plantilla?: boolean; p_timezone: string }
         Returns: {
@@ -1318,6 +1500,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      entradas_estadisticas: {
+        Args: { p_desde: string; p_hasta: string; p_workspace: string }
+        Returns: Json
       }
       espacio_por_codigo: {
         Args: { p_codigo: string }
@@ -1399,6 +1585,7 @@ export type Database = {
         }
       }
       puede_escribir: { Args: { p_workspace: string }; Returns: boolean }
+      puede_tocar: { Args: { p_workspace: string }; Returns: boolean }
       renombrar_miembro: {
         Args: { p_nombre: string; p_user: string; p_workspace: string }
         Returns: string
@@ -1519,6 +1706,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      traspasar_plaza: {
+        Args: { p_a: string; p_de: string }
+        Returns: undefined
+      }
       unirse_con_codigo: {
         Args: { p_codigo: string; p_plaza?: string }
         Returns: {
@@ -1535,10 +1726,11 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      ve_todo: { Args: { p_workspace: string }; Returns: boolean }
     }
     Enums: {
       project_kind: "evento" | "b2b" | "oportunidad" | "b2c"
-      user_role: "admin" | "manager" | "member"
+      user_role: "admin" | "manager" | "member" | "coach"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1667,7 +1859,7 @@ export const Constants = {
   public: {
     Enums: {
       project_kind: ["evento", "b2b", "oportunidad", "b2c"],
-      user_role: ["admin", "manager", "member"],
+      user_role: ["admin", "manager", "member", "coach"],
     },
   },
 } as const

@@ -37,6 +37,12 @@ export type Miembro = {
   email: string
   role: Enums<"user_role">
   active: boolean
+  /**
+   * Plaza con horas de alguien que aún no tiene cuenta (lo importado de
+   * Clockify). Sale en informes y filtros, pero no se le proponen horas: no
+   * puede entrar a aceptarlas. Quien coja la plaza se queda con todo.
+   */
+  sin_cuenta: boolean
 }
 
 /** Fila de la vista v_entries, con los campos ya no nulos donde el SQL lo garantiza. */

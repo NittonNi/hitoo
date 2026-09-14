@@ -60,10 +60,13 @@ type Enlace = {
 const GRUPOS: {
   titulo: string
   soloGestores?: boolean
+  /** El coach mira y no apunta: estas no le salen. */
+  paraApuntar?: boolean
   enlaces: Enlace[]
 }[] = [
   {
     titulo: "Apuntar",
+    paraApuntar: true,
     enlaces: [
       { href: RUTA_APP, etiqueta: "Cronómetro", icono: Timer, exacto: true },
       { href: "/calendario", etiqueta: "Calendario", icono: CalendarDays },
@@ -99,7 +102,10 @@ const GRUPOS: {
 function useGrupos() {
   const { rol } = useSesion()
   const puedeGestionar = rol === "admin" || rol === "manager"
-  return GRUPOS.filter((g) => !g.soloGestores || puedeGestionar).map((g) => ({
+  const apunta = rol !== "coach"
+  return GRUPOS.filter(
+    (g) => (!g.soloGestores || puedeGestionar) && (!g.paraApuntar || apunta),
+  ).map((g) => ({
     ...g,
     enlaces: g.enlaces.filter((e) => !e.soloAdmin || rol === "admin"),
   }))
@@ -112,9 +118,17 @@ function useGrupos() {
 const EN_MOVIL = ["/calendario", "/semana", "/proyectos", "/informes"]
 
 function useEnlacesMovil(): Enlace[] {
-  return GRUPOS.flatMap((g) => g.enlaces).filter(
-    (e) => e.href === RUTA_APP || EN_MOVIL.includes(e.href),
-  )
+  const { rol } = useSesion()
+  const coach = rol === "coach"
+  // El coach no apunta: le sobra sitio abajo para Estadísticas, que es su portada
+  return GRUPOS.filter((g) => !g.paraApuntar || !coach)
+    .flatMap((g) => g.enlaces)
+    .filter(
+      (e) =>
+        e.href === RUTA_APP ||
+        EN_MOVIL.includes(e.href) ||
+        (coach && e.href === "/estadisticas"),
+    )
 }
 
 function estaActivo(pathname: string, href: string, exacto?: boolean) {

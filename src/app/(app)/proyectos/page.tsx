@@ -1,5 +1,5 @@
 import { getSesion } from "@/lib/sesion"
-import { veTodo } from "@/lib/roles"
+import { puedeGestionar, veTodo } from "@/lib/roles"
 import { cargarCatalogo } from "@/lib/datos"
 import { createClient } from "@/lib/supabase/server"
 import {
@@ -28,6 +28,7 @@ export default async function PaginaProyectos() {
       categorias={catalogo.categorias}
       resumen={(resumen.data ?? []) as ResumenProyecto[]}
       gestor={gestor}
+      puedeCrear={puedeGestionar(rol)}
     />
   )
 }

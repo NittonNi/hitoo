@@ -41,8 +41,9 @@ export function CompartirCon({
      cambie nada de fondo sigue siendo el mismo rato; en cuanto se toca, cada
      uno sigue por su lado y esto desaparece. */
   const vinoDe = entrada.venida_de
-  // Con quién se puede compartir: todo el equipo menos la persona de la hora
-  const otros = miembros.filter((m) => m.id !== entrada.user_id)
+  // Con quién se puede compartir: todo el equipo menos la persona de la hora,
+  // y menos las plazas sin cuenta, que no pueden entrar a aceptarla
+  const otros = miembros.filter((m) => m.id !== entrada.user_id && !m.sin_cuenta)
   /* ...y menos quien te la propuso: ya tiene este rato, y si se lo devuelves y
      lo acepta se queda con su propia hora dos veces, y así en bucle. Sale en
      la lista, marcado y quieto, pero no se le puede proponer. */

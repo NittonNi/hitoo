@@ -15,6 +15,8 @@ export type Plaza = {
   name: string
   claimed_by: string | null
   quien: string | null
+  /** Trae horas importadas, que pasan a quien la coja. */
+  con_horas: boolean
 }
 
 /**
@@ -132,6 +134,10 @@ export function GestionPlazas({
                 <Check className="h-3 w-3" />
                 {plaza.quien ?? "ya está dentro"}
               </span>
+            ) : plaza.con_horas ? (
+              /* Sin papelera: quitarla dejaría sus horas sin nadie que pueda
+                 quedárselas */
+              <span className="chip">sin coger, con sus horas</span>
             ) : (
               <>
                 <span className="chip">sin coger</span>

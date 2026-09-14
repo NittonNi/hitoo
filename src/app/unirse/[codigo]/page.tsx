@@ -9,8 +9,11 @@ export const metadata = { title: "Unirse a un equipo" }
 /** Se ve antes de entrar al panel, así que va en claro como la portada. */
 export const viewport = { themeColor: "#f5f5f7" }
 
-/** Lo que devuelve `espacio_por_codigo`: el equipo y los nombres libres. */
-type Plaza = { id: string; nombre: string }
+/**
+ * Lo que devuelve `espacio_por_codigo`: el equipo y los nombres libres. La que
+ * trae tu correo de la importación llega primera y marcada como sugerida.
+ */
+type Plaza = { id: string; nombre: string; sugerida: boolean; con_horas: boolean }
 
 export default async function PaginaUnirse({
   params,

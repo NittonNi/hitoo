@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation"
 
 import { getSesion } from "@/lib/sesion"
-import { veTodo } from "@/lib/roles"
+import { puedeGestionar } from "@/lib/roles"
 import { RUTA_APP } from "@/lib/rutas"
 import { SubNav } from "@/components/sub-nav"
 
@@ -11,7 +11,7 @@ export default async function LayoutGestion({
   children: React.ReactNode
 }) {
   const { rol } = await getSesion()
-  if (!veTodo(rol)) redirect(RUTA_APP)
+  if (!puedeGestionar(rol)) redirect(RUTA_APP)
 
   const enlaces = [
     { href: "/gestion", etiqueta: "Catálogo", exacto: true },

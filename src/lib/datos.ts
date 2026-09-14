@@ -108,7 +108,7 @@ export async function cargarMiembros(espacioId: string): Promise<Miembro[]> {
 
   const { data } = await supabase
     .from("workspace_members")
-    .select("role, active, profiles(id, full_name, email)")
+    .select("role, active, profiles(id, full_name, email, sin_cuenta)")
     .eq("workspace_id", espacioId)
 
   return (data ?? [])
@@ -121,6 +121,7 @@ export async function cargarMiembros(espacioId: string): Promise<Miembro[]> {
               email: fila.profiles.email,
               role: fila.role,
               active: fila.active,
+              sin_cuenta: fila.profiles.sin_cuenta,
             },
           ]
         : [],
