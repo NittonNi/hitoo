@@ -11,7 +11,7 @@ export default async function PaginaCatalogo() {
   const catalogo = await cargarCatalogo(espacio.id, true)
 
   return (
-    <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)]">
+    <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)]">
       <GestionEtiquetas espacioId={espacio.id} etiquetas={catalogo.etiquetas} />
       <GestionProyectos
         espacioId={espacio.id}

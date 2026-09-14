@@ -8,15 +8,21 @@ import { createClient } from "@/lib/supabase/client"
 import { mensajeError } from "@/lib/errores"
 import type { Espacio } from "@/lib/tipos"
 import { EMPRESA, PRECIO } from "@/lib/empresa"
+import { formatDateShort, formatDurationShort } from "@/lib/time"
 import { cn, nuevoCodigo } from "@/lib/utils"
 
 export type Plaza = {
   id: string
   name: string
+  /** El correo con que llegó de la importación: sugiere la plaza al unirse. */
+  email: string | null
   claimed_by: string | null
   quien: string | null
   /** Trae horas importadas, que pasan a quien la coja. */
   con_horas: boolean
+  /** Cuánto se lleva quien la coja, y de cuándo es lo último. */
+  segundos: number
+  ultima: string | null
 }
 
 /**
@@ -98,6 +104,8 @@ export function GestionPlazas({
       <p className="mb-3 mt-0.5 text-sm text-muted">
         Escribe los nombres y reparte el enlace: cada uno entra con su correo o
         con Google y dice cuál es el suyo.
+        {plazas.some((p) => p.con_horas && !p.claimed_by) &&
+          " Las plazas con horas se las lleva quien las coja."}
       </p>
 
       {error && (
@@ -128,7 +136,18 @@ export function GestionPlazas({
         )}
         {plazas.map((plaza) => (
           <li key={plaza.id} className="flex items-center gap-2 py-2">
-            <span className="min-w-0 flex-1 truncate text-sm">{plaza.name}</span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm">{plaza.name}</span>
+              {/* Lo que se lleva quien la coja: que no haga falta ir a
+                  Informes para saber si es la plaza con dos años de horas */}
+              {!plaza.claimed_by && plaza.con_horas && (
+                <span className="block truncate text-xs text-muted">
+                  <span className="cifra">{formatDurationShort(plaza.segundos)}</span>
+                  {plaza.ultima && ` · última hora el ${formatDateShort(plaza.ultima)}`}
+                  {plaza.email && ` · ${plaza.email}`}
+                </span>
+              )}
+            </span>
             {plaza.claimed_by ? (
               <span className="chip chip-facturable gap-1">
                 <Check className="h-3 w-3" />
@@ -137,7 +156,7 @@ export function GestionPlazas({
             ) : plaza.con_horas ? (
               /* Sin papelera: quitarla dejaría sus horas sin nadie que pueda
                  quedárselas */
-              <span className="chip">sin coger, con sus horas</span>
+              <span className="chip">sin coger</span>
             ) : (
               <>
                 <span className="chip">sin coger</span>

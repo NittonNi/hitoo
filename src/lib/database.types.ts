@@ -1514,6 +1514,16 @@ export type Database = {
         }[]
       }
       estilo_del_espacio: { Args: { p_workspace: string }; Returns: string }
+      horas_por_persona: {
+        Args: { p_workspace: string }
+        Returns: {
+          apuntes: number
+          primera: string
+          segundos: number
+          ultima: string
+          user_id: string
+        }[]
+      }
       is_admin: { Args: { p_workspace: string }; Returns: boolean }
       is_member: { Args: { p_workspace: string }; Returns: boolean }
       join_workspace: {

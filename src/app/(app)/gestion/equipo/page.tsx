@@ -12,7 +12,7 @@ export default async function PaginaEquipo() {
   const { perfil, espacio, rol } = await getSesion()
   const supabase = await createClient()
 
-  const [miembros, invitaciones, plazas] = await Promise.all([
+  const [miembros, invitaciones, plazas, horas] = await Promise.all([
     cargarMiembros(espacio.id),
     supabase
       .from("invitations")
@@ -23,18 +23,26 @@ export default async function PaginaEquipo() {
       .from("workspace_seats")
       // Dos claves van a profiles (quien la cogio y la persona sin cuenta con
       // sus horas): sin nombrar la clave, PostgREST no sabe cual unir
-      .select("id, name, claimed_by, provisional_id, profiles!workspace_seats_claimed_by_fkey(full_name)")
+      .select("id, name, email, claimed_by, provisional_id, profiles!workspace_seats_claimed_by_fkey(full_name)")
       .eq("workspace_id", espacio.id)
       .order("name"),
+    supabase.rpc("horas_por_persona", { p_workspace: espacio.id }),
   ])
 
-  const listaPlazas = (plazas.data ?? []).map((p) => ({
-    id: p.id,
-    name: p.name,
-    claimed_by: p.claimed_by,
-    quien: p.profiles?.full_name ?? null,
-    con_horas: p.provisional_id !== null,
-  }))
+  const horasDe = new Map((horas.data ?? []).map((h) => [h.user_id, h]))
+  const listaPlazas = (plazas.data ?? []).map((p) => {
+    const suyas = p.provisional_id ? horasDe.get(p.provisional_id) : undefined
+    return {
+      id: p.id,
+      name: p.name,
+      email: p.email,
+      claimed_by: p.claimed_by,
+      quien: p.profiles?.full_name ?? null,
+      con_horas: p.provisional_id !== null,
+      segundos: suyas?.segundos ?? 0,
+      ultima: suyas?.ultima ?? null,
+    }
+  })
 
   // Las plazas con horas cuelgan de una persona sin cuenta, que es miembro
   // para que sus horas salgan en informes; en Equipo ya sale como plaza

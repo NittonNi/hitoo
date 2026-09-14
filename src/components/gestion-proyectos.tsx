@@ -74,17 +74,22 @@ export function GestionProyectos({
       return suya.parent_id ? (porId.get(suya.parent_id) ?? suya) : suya
     }
 
-    const mapa = new Map<string, { titulo: string; filas: Proyecto[] }>()
+    const mapa = new Map<string, { titulo: string; orden: number; filas: Proyecto[] }>()
     for (const proyecto of visibles) {
       const suya = area(proyecto)
       const clave = suya?.id ?? "__sin__"
       const titulo = suya?.name ?? "Sin área"
-      if (!mapa.has(clave)) mapa.set(clave, { titulo, filas: [] })
+      if (!mapa.has(clave)) mapa.set(clave, { titulo, orden: suya?.position ?? 0, filas: [] })
       mapa.get(clave)!.filas.push(proyecto)
     }
+    // En el orden de Categorización, como en el resto de la app
     return [...mapa.entries()]
       .sort((a, b) =>
-        a[0] === "__sin__" ? 1 : b[0] === "__sin__" ? -1 : a[1].titulo.localeCompare(b[1].titulo),
+        a[0] === "__sin__"
+          ? 1
+          : b[0] === "__sin__"
+            ? -1
+            : a[1].orden - b[1].orden || a[1].titulo.localeCompare(b[1].titulo),
       )
       .map(([, grupo]) => grupo)
   }, [visibles, categorias])

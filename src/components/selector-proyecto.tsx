@@ -148,25 +148,27 @@ export function SelectorProyecto({
     const mios = visibles.filter((v) => favoritos.includes(v.proyecto.id))
     const resto = visibles.filter((v) => !favoritos.includes(v.proyecto.id))
 
-    const porArea = new Map<string, { titulo: string; filas: typeof visibles }>()
+    const porArea = new Map<string, { titulo: string; orden: number; filas: typeof visibles }>()
     for (const fila of resto) {
       const area = areaDe(fila.proyecto)
       const clave = area?.id ?? "sin-area"
       const grupo = porArea.get(clave) ?? {
         titulo: area?.name ?? "Sin área",
+        orden: area?.position ?? 0,
         filas: [],
       }
       grupo.filas.push(fila)
       porArea.set(clave, grupo)
     }
 
+    // En el orden de Categorización
     const ordenados = [...porArea.entries()]
       .sort((a, b) => {
         if (a[0] === "sin-area") return 1
         if (b[0] === "sin-area") return -1
-        return a[1].titulo.localeCompare(b[1].titulo, "es")
+        return a[1].orden - b[1].orden || a[1].titulo.localeCompare(b[1].titulo, "es")
       })
-      .map(([clave, grupo]) => ({ clave, ...grupo }))
+      .map(([clave, grupo]) => ({ clave, titulo: grupo.titulo, filas: grupo.filas }))
 
     return mios.length > 0
       ? [{ clave: "favoritos", titulo: "Tuyos", filas: mios }, ...ordenados]
