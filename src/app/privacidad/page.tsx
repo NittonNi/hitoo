@@ -394,10 +394,52 @@ export default function PaginaPrivacidad() {
         <section>
           <h2 className="text-lg font-semibold text-ink">Cookies</h2>
           <p className="mt-3">
-            hitoo usa únicamente las cookies imprescindibles para mantener la
-            sesión iniciada (gestionadas por Supabase Auth). No hay cookies de
-            publicidad ni de analítica de terceros.
+            hitoo usa solo cookies propias y funcionales: sirven para que la
+            aplicación recuerde quién eres y cómo la dejaste, nunca para
+            publicidad ni para analítica de terceros. Al ser todas propias y
+            necesarias para el funcionamiento, no hace falta pedir
+            consentimiento para usarlas.
           </p>
+          <ul className="mt-3 list-disc space-y-2 pl-5">
+            <li>
+              <strong>La sesión</strong> (una o varias cookies con el nombre{" "}
+              <code className="rounded bg-surface-2 px-1 py-0.5 text-xs">
+                sb-...-auth-token
+              </code>
+              , partida en varias si no cabe en una sola): la gestiona
+              Supabase Auth y es la que mantiene la sesión iniciada. Dura 400
+              días, el máximo que admiten los navegadores.
+            </li>
+            <li>
+              <code className="rounded bg-surface-2 px-1 py-0.5 text-xs">
+                espacio
+              </code>
+              : qué espacio de trabajo tienes activo, para volver a él la
+              próxima vez que entres. Dura 365 días.
+            </li>
+            <li>
+              <code className="rounded bg-surface-2 px-1 py-0.5 text-xs">
+                directo
+              </code>
+              : si marcaste «llévame directo a mi espacio» para saltarte la
+              portada. Dura 365 días.
+            </li>
+            <li>
+              <code className="rounded bg-surface-2 px-1 py-0.5 text-xs">
+                menu-plegado
+              </code>
+              : si el menú de la izquierda está plegado en iconos. Dura 365
+              días.
+            </li>
+            <li>
+              <code className="rounded bg-surface-2 px-1 py-0.5 text-xs">
+                semana-omitida
+              </code>
+              : qué aviso de días sin apuntar has quitado esta semana, y en
+              qué espacio. Dura 8 días —la semana siguiente ya no cuenta— y
+              se borra antes si vuelves a activar el aviso.
+            </li>
+          </ul>
         </section>
       </div>
     </main>

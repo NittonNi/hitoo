@@ -33,6 +33,17 @@ export const metadata = {
   title: { absolute: "hitoo · Las horas del equipo, en su sitio" },
   description:
     "Control de horas para equipos LEINN: cronómetro, calendario, hoja semanal, proyectos e informes. Con la categorización de vuestro equipo y lo que ya tenéis en Clockify.",
+  // El openGraph del layout se sustituye entero, no se mezcla: sin título ni
+  // descripción propios, Next los toma de los de arriba -el mismo texto que
+  // pide Nicolás para lo que se comparte de la portada-.
+  openGraph: {
+    siteName: "hitoo",
+    locale: "es_ES",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+  },
 }
 
 /** La marca, en pequeño. */

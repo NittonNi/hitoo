@@ -14,11 +14,26 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
+  // Dominio canónico: hitoo.es redirige aquí con 308. Hace falta para que
+  // las URLs de imagen (og:image, twitter:image) salgan absolutas.
+  metadataBase: new URL("https://www.hitoo.es"),
   title: {
     default: "hitoo",
     template: "%s · hitoo",
   },
   description: "Cronómetro, hojas de horas e informes para equipos",
+  // Sin título ni descripción propios a propósito: los toma del title y la
+  // description de arriba (Next los rellena solo si openGraph/twitter no
+  // traen los suyos). Una página con su propio openGraph -la portada- lo
+  // sustituye entero, no lo mezcla, así que repite estas mismas claves.
+  openGraph: {
+    siteName: "hitoo",
+    locale: "es_ES",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+  },
 }
 
 export const viewport: Viewport = {
