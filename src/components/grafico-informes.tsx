@@ -10,7 +10,7 @@ import {
   YAxis,
 } from "recharts"
 
-import { formatDateShort, fromDateKey } from "@/lib/time"
+import { formatDateShort, formatDurationShort, fromDateKey } from "@/lib/time"
 
 /**
  * Solo el gráfico de "Horas por día" del informe: se separa de
@@ -19,21 +19,31 @@ import { formatDateShort, fromDateKey } from "@/lib/time"
  */
 export function GraficoInformes({
   serie,
+  unidad,
 }: {
+  /** `dia` es el primer día de cada barra: un día, una semana o un mes. */
   serie: { dia: string; horas: number; facturables: number }[]
+  unidad: "dia" | "semana" | "mes"
 }) {
+  const etiquetaEje = (dia: string) =>
+    fromDateKey(dia).toLocaleDateString(
+      "es-ES",
+      unidad === "mes" ? { month: "short", year: "2-digit" } : { day: "numeric", month: "short" },
+    )
+  const etiquetaCaja = (dia: string) =>
+    unidad === "dia"
+      ? formatDateShort(dia)
+      : unidad === "semana"
+        ? `Semana del ${formatDateShort(dia)}`
+        : fromDateKey(dia).toLocaleDateString("es-ES", { month: "long", year: "numeric" })
+
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <BarChart data={serie} margin={{ top: 4, right: 8, bottom: 4, left: -20 }}>
+      <BarChart data={serie} margin={{ top: 4, right: 8, bottom: 4, left: -4 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
         <XAxis
           dataKey="dia"
-          tickFormatter={(dia: string) =>
-            fromDateKey(dia).toLocaleDateString("es-ES", {
-              day: "numeric",
-              month: "short",
-            })
-          }
+          tickFormatter={etiquetaEje}
           tick={{ fontSize: 11, fill: "var(--muted)" }}
           tickLine={false}
           axisLine={{ stroke: "var(--border)" }}
@@ -43,7 +53,8 @@ export function GraficoInformes({
           tick={{ fontSize: 11, fill: "var(--muted)" }}
           tickLine={false}
           axisLine={false}
-          width={44}
+          width={52}
+          tickFormatter={(n: number) => n.toLocaleString("es-ES")}
         />
         <Tooltip
           cursor={{ fill: "var(--surface-2)" }}
@@ -54,9 +65,9 @@ export function GraficoInformes({
             fontSize: "0.8rem",
             color: "var(--text)",
           }}
-          labelFormatter={(dia) => formatDateShort(String(dia))}
+          labelFormatter={(dia) => etiquetaCaja(String(dia))}
           formatter={(valor, nombre) => [
-            `${Number(valor ?? 0).toLocaleString("es-ES")} h`,
+            formatDurationShort(Math.round(Number(valor ?? 0) * 3600)),
             nombre === "facturables" ? "Facturables" : "Horas",
           ]}
         />

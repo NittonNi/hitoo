@@ -1,6 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import dynamic from "next/dynamic"
 import { Download, FileSpreadsheet, FileText, Printer } from "lucide-react"
@@ -10,15 +11,23 @@ import { mensajeError } from "@/lib/errores"
 import { porTandas, quincenas, traerTodo } from "@/lib/paginar"
 import { useSesion } from "@/components/proveedor-sesion"
 import { FiltroMultiple } from "@/components/filtro-multiple"
-import { categoriasRaiz, SIN_CATEGORIA } from "@/lib/categorias"
+import { opcionesDeProyectos, SIN_NADA } from "@/components/filtros-horas"
+import { categoriasRaiz } from "@/lib/categorias"
 import { exportarCsv, exportarExcel, exportarPdf } from "@/lib/exportar"
 import { AccionesInforme } from "@/components/acciones-informe"
 import { DialogoEntrada } from "@/components/dialogo-entrada"
-import { agrupar, porDia, rangos, totales } from "@/lib/informes"
 import {
+  agrupar,
+  horasQueSePisan,
+  porTramos,
+  rangos,
+  totales,
+  unidadSerie,
+} from "@/lib/informes"
+import {
+  formatClock,
   formatDateShort,
   formatDurationShort,
-  formatHoursDecimal,
   formatMoney,
   todayKey,
 } from "@/lib/time"
@@ -42,9 +51,6 @@ const GraficoInformes = dynamic(
 
 type Facturable = "todo" | "si" | "no"
 
-/** Para poder marcar «sin proyecto» o «sin área» como una opción más. */
-const SIN_NADA = "__sin__"
-
 export function PanelInformes({
   entradas,
   catalogo,
@@ -53,15 +59,19 @@ export function PanelInformes({
   hasta,
   puedeVerImportes,
   puedeAbrirCerradas,
+  hayTarifas,
 }: {
   entradas: EntradaVista[]
   catalogo: Catalogo
+  /** Todo el equipo, también quien está desactivado: sus horas siguen contando. */
   miembros: Miembro[]
   desde: string
   hasta: string
   puedeVerImportes: boolean
   /** Las horas cerradas solo las vuelve a abrir quien administra. */
   puedeAbrirCerradas: boolean
+  /** Sin tarifas todo importe es 0 €: se dice, en vez de pintar ceros. */
+  hayTarifas: boolean
 }) {
   const router = useRouter()
   const { espacio } = useSesion()
@@ -74,6 +84,7 @@ export function PanelInformes({
   const [facturable, setFacturable] = useState<Facturable>("todo")
   const [cierre, setCierre] = useState<"todo" | "abiertas" | "cerradas">("todo")
   const [busqueda, setBusqueda] = useState("")
+  const [soloPisadas, setSoloPisadas] = useState(false)
   const [verTodo, setVerTodo] = useState(false)
   const [generando, setGenerando] = useState<"excel" | "pdf" | "todo" | null>(
     null,
@@ -91,10 +102,23 @@ export function PanelInformes({
     router.push(`/informes?desde=${nuevoDesde}&hasta=${nuevoHasta}`)
   }
 
+  /* Las que se pisan con otra de la misma persona se buscan en todo el
+     periodo, antes de filtrar: filtrar por proyecto no hace que dejen de
+     pisarse. */
+  const pisadas = useMemo(() => horasQueSePisan(entradas), [entradas])
+
   const filtradas = useMemo(() => {
     const texto = busqueda.trim().toLowerCase()
-    return entradas.filter((entrada) => {
+    /* Mirando las que se pisan, por persona y hora: así cada una sale junto a
+       la otra con la que choca, que es como se ve cuál sobra. */
+    const base = soloPisadas
+      ? [...entradas].sort(
+          (a, b) => a.user_name.localeCompare(b.user_name) || b.start_at.localeCompare(a.start_at),
+        )
+      : entradas
+    return base.filter((entrada) => {
       if (!entrada.end_at) return false
+      if (soloPisadas && !pisadas.has(entrada.id)) return false
       if (personas.length > 0 && !personas.includes(entrada.user_id)) return false
       if (
         categorias.length > 0 &&
@@ -109,7 +133,12 @@ export function PanelInformes({
         return false
       }
       // Con varias etiquetas marcadas vale con llevar cualquiera de ellas
-      if (etiquetas.length > 0 && !etiquetas.some((t) => entrada.tags.includes(t))) {
+      if (
+        etiquetas.length > 0 &&
+        !etiquetas.some((t) =>
+          t === SIN_NADA ? entrada.tags.length === 0 : entrada.tags.includes(t),
+        )
+      ) {
         return false
       }
       if (facturable === "si" && !entrada.billable) return false
@@ -131,10 +160,16 @@ export function PanelInformes({
     facturable,
     cierre,
     busqueda,
+    soloPisadas,
+    pisadas,
   ])
 
   const suma = useMemo(() => totales(filtradas), [filtradas])
-  const serie = useMemo(() => porDia(filtradas, desde, hasta), [filtradas, desde, hasta])
+  const unidad = unidadSerie(desde, hasta)
+  const serie = useMemo(
+    () => porTramos(filtradas, desde, hasta, unidad),
+    [filtradas, desde, hasta, unidad],
+  )
 
   const porProyecto = useMemo(
     () =>
@@ -150,21 +185,18 @@ export function PanelInformes({
     () => agrupar(filtradas, (e) => e.user_id, (e) => e.user_name),
     [filtradas],
   )
-  /* La categorizacion se lee por rama entera: la subcategoria cuenta dentro de
-     su categoria, que es como se miran los objetivos. */
-  const porCategoria = useMemo(
+  /* Por área entera: sus categorías cuentan dentro. El nombre es solo el del
+     área; antes llevaba pegada la categoría de la primera hora que aparecía,
+     y el total era el de todas. */
+  const porArea = useMemo(
     () =>
       agrupar(
         filtradas,
         (e) => e.category_id ?? "sin",
-        (e) =>
-          e.category_name
-            ? e.subcategory_name
-              ? e.category_name + " / " + e.subcategory_name
-              : e.category_name
-            : SIN_CATEGORIA,
+        (e) => e.category_name ?? "Sin área",
+        (e) => catalogo.categorias.find((c) => c.id === e.category_id)?.color ?? null,
       ),
-    [filtradas],
+    [filtradas, catalogo.categorias],
   )
   const porEdicion = useMemo(
     () =>
@@ -182,8 +214,49 @@ export function PanelInformes({
      despues de marcar seis filas. */
   const paraDescargar = seleccionadas.length > 0 ? seleccionadas : filtradas
 
-  const diasConHoras = serie.filter((d) => d.horas > 0).length
+  const diasConHoras = new Set(filtradas.map((e) => e.local_date)).size
+  /* La media es de una persona en un día en que trabajó: sumar a todo el
+     equipo y dividir entre días daba 45 h «por día». */
+  const gente = new Set(filtradas.map((e) => e.user_id)).size
+  const personaDias = new Set(filtradas.map((e) => `${e.user_id}|${e.local_date}`)).size
+  const conImportes = puedeVerImportes && hayTarifas
   const nombreFichero = `horas-${desde}-a-${hasta}`
+
+  /* Lo que se ha filtrado, escrito, para que el fichero diga de qué es: un
+     Excel sin eso parece el total del equipo aunque sea de dos proyectos. */
+  const nombresDe = (ids: string[], opciones: { id: string; nombre: string }[]) => {
+    const nombres = opciones.filter((o) => ids.includes(o.id)).map((o) => o.nombre)
+    return nombres.length <= 4 ? nombres.join(", ") : `${nombres.length} elegidos`
+  }
+  const filtrosEscritos = [
+    personas.length > 0 &&
+      "Personas: " + nombresDe(personas, miembros.map((m) => ({ id: m.id, nombre: m.full_name }))),
+    categorias.length > 0 &&
+      "Áreas: " +
+        nombresDe(categorias, [
+          ...catalogo.categorias.map((c) => ({ id: c.id, nombre: c.name })),
+          { id: SIN_NADA, nombre: "Sin área" },
+        ]),
+    proyectos.length > 0 &&
+      "Proyectos: " +
+        nombresDe(proyectos, [
+          ...catalogo.proyectos.map((p) => ({ id: p.id, nombre: p.name })),
+          { id: SIN_NADA, nombre: "Sin proyecto" },
+        ]),
+    etiquetas.length > 0 &&
+      "Etiquetas: " +
+        nombresDe(etiquetas, [
+          ...catalogo.etiquetas.map((t) => ({ id: t.name, nombre: t.name })),
+          { id: SIN_NADA, nombre: "Sin etiqueta" },
+        ]),
+    facturable === "si" && "Solo facturable",
+    facturable === "no" && "Solo no facturable",
+    cierre === "abiertas" && "Solo las abiertas",
+    cierre === "cerradas" && "Solo las cerradas",
+    busqueda.trim() && `Descripción con «${busqueda.trim()}»`,
+    soloPisadas && "Solo las que se pisan con otra",
+    seleccionadas.length > 0 && `${seleccionadas.length} horas elegidas a mano`,
+  ].filter((f): f is string => Boolean(f))
 
   async function excel() {
     setGenerando("excel")
@@ -192,7 +265,10 @@ export function PanelInformes({
         nombre: nombreFichero,
         desde,
         hasta,
-        conImportes: puedeVerImportes,
+        conImportes,
+        filtros: filtrosEscritos,
+        espacio: espacio.name,
+        timeZone: espacio.timezone,
       })
     } finally {
       setGenerando(null)
@@ -249,7 +325,10 @@ export function PanelInformes({
         nombre: "horas-" + espacio.slug + "-completo",
         desde: todas[0].local_date,
         hasta: todas[todas.length - 1].local_date,
-        conImportes: puedeVerImportes,
+        conImportes,
+        filtros: [],
+        espacio: espacio.name,
+        timeZone: espacio.timezone,
       })
     } catch (err) {
       setErrorDescarga(mensajeError(err))
@@ -261,38 +340,14 @@ export function PanelInformes({
   async function pdf() {
     setGenerando("pdf")
     try {
-      await exportarPdf({
-        titulo: "Informe de horas",
-        subtitulo: `${formatDateShort(desde)} - ${formatDateShort(hasta)}`,
-        resumen: [
-          { etiqueta: "Total", valor: `${formatHoursDecimal(suma.segundos)} h` },
-          {
-            etiqueta: "Facturable",
-            valor: `${formatHoursDecimal(suma.facturables)} h`,
-          },
-          ...(puedeVerImportes
-            ? [{ etiqueta: "Importe", valor: formatMoney(suma.importe) }]
-            : []),
-        ],
-        columnas: [
-          "Fecha",
-          "Persona",
-          "Proyecto",
-          "Descripción",
-          "Horas",
-          ...(puedeVerImportes ? ["Importe"] : []),
-        ],
-        filas: paraDescargar.map((entrada) => [
-          formatDateShort(entrada.local_date),
-          entrada.user_name,
-          entrada.project_name ?? "",
-          entrada.description,
-          formatHoursDecimal(entrada.duration_seconds),
-          ...(puedeVerImportes
-            ? [entrada.amount != null ? formatMoney(Number(entrada.amount)) : ""]
-            : []),
-        ]),
+      await exportarPdf(paraDescargar, {
         nombre: nombreFichero,
+        desde,
+        hasta,
+        conImportes,
+        filtros: filtrosEscritos,
+        espacio: espacio.name,
+        timeZone: espacio.timezone,
       })
     } finally {
       setGenerando(null)
@@ -379,7 +434,11 @@ export function PanelInformes({
             <FiltroMultiple
               etiqueta="Personas"
               todos="Todo el equipo"
-              opciones={miembros.map((m) => ({ id: m.id, nombre: m.full_name }))}
+              opciones={miembros.map((m) => ({
+                id: m.id,
+                nombre: m.full_name,
+                detalle: m.sin_cuenta ? "plaza" : !m.active ? "desactivado" : undefined,
+              }))}
               elegidas={personas}
               onChange={setPersonas}
             />
@@ -403,7 +462,7 @@ export function PanelInformes({
             etiqueta="Proyectos"
             todos="Todos los proyectos"
             opciones={[
-              ...catalogo.proyectos.map((p) => ({ id: p.id, nombre: p.name })),
+              ...opcionesDeProyectos(catalogo),
               { id: SIN_NADA, nombre: "Sin proyecto" },
             ]}
             elegidas={proyectos}
@@ -413,10 +472,10 @@ export function PanelInformes({
           <FiltroMultiple
             etiqueta="Etiquetas"
             todos="Todas las etiquetas"
-            opciones={catalogo.etiquetas.map((t) => ({
-              id: t.name,
-              nombre: t.name,
-            }))}
+            opciones={[
+              ...catalogo.etiquetas.map((t) => ({ id: t.name, nombre: t.name })),
+              { id: SIN_NADA, nombre: "Sin etiqueta" },
+            ]}
             elegidas={etiquetas}
             onChange={setEtiquetas}
           />
@@ -446,7 +505,7 @@ export function PanelInformes({
           </select>
 
           <input
-            className="field h-[2.125rem] w-auto flex-1 rounded-[3px] py-0"
+            className="field col-span-2 h-[2.125rem] w-auto min-w-[14rem] flex-1 rounded-[3px] py-0"
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
             placeholder="Buscar en la descripción"
@@ -466,7 +525,7 @@ export function PanelInformes({
           </button>
           <button
             type="button"
-            onClick={() => exportarCsv(paraDescargar, nombreFichero)}
+            onClick={() => exportarCsv(paraDescargar, nombreFichero, { conImportes, timeZone: espacio.timezone })}
             disabled={paraDescargar.length === 0}
             className="btn py-1.5"
           >
@@ -519,8 +578,12 @@ export function PanelInformes({
       </section>
 
       {/* ------------------------------------------------------------ resumen */}
-      <section className="grid grid-cols-1 grid-cols-2 gap-3 lg:grid-cols-4">
-        <Tarjeta etiqueta="Total" valor={formatDurationShort(suma.segundos)} pie={`${suma.entradas} entradas`} />
+      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Tarjeta
+          etiqueta="Total"
+          valor={formatDurationShort(suma.segundos)}
+          pie={`${suma.entradas.toLocaleString("es-ES")} apuntes`}
+        />
         <Tarjeta
           etiqueta="Facturable"
           valor={formatDurationShort(suma.facturables)}
@@ -532,11 +595,27 @@ export function PanelInformes({
           acento
         />
         {puedeVerImportes ? (
-          <Tarjeta
-            etiqueta="Importe"
-            valor={formatMoney(suma.importe)}
-            pie="Según tarifas vigentes"
-          />
+          hayTarifas ? (
+            <Tarjeta
+              etiqueta="Importe"
+              valor={formatMoney(suma.importe)}
+              pie="Según tarifas vigentes"
+            />
+          ) : (
+            <Tarjeta
+              etiqueta="Importe"
+              valor="Sin tarifas"
+              pie={
+                puedeAbrirCerradas ? (
+                  <Link href="/gestion/tarifas" className="text-accent">
+                    Ponlas en Tarifas
+                  </Link>
+                ) : (
+                  "Las pone quien administra"
+                )
+              }
+            />
+          )
         ) : (
           <Tarjeta
             etiqueta="Proyectos"
@@ -545,19 +624,23 @@ export function PanelInformes({
           />
         )}
         <Tarjeta
-          etiqueta="Media por día"
-          valor={formatDurationShort(
-            diasConHoras > 0 ? suma.segundos / diasConHoras : 0,
-          )}
-          pie={`${diasConHoras} días con horas`}
+          etiqueta={gente > 1 ? "Media por persona y día" : "Media por día"}
+          valor={formatDurationShort(personaDias > 0 ? suma.segundos / personaDias : 0)}
+          pie={
+            gente > 1
+              ? `${gente} personas · ${diasConHoras} días con horas`
+              : `${diasConHoras} días con horas`
+          }
         />
       </section>
 
       {/* ------------------------------------------------------------ grafico */}
       <section className="card min-w-0 p-4">
-        <h2 className="mb-3 text-sm font-semibold">Horas por día</h2>
+        <h2 className="mb-3 text-sm font-semibold">
+          {unidad === "dia" ? "Horas por día" : unidad === "semana" ? "Horas por semana" : "Horas por mes"}
+        </h2>
         <div className="h-64 w-full">
-          <GraficoInformes serie={serie} />
+          <GraficoInformes serie={serie} unidad={unidad} />
         </div>
       </section>
 
@@ -567,22 +650,22 @@ export function PanelInformes({
           titulo="Por proyecto"
           grupos={porProyecto}
           total={suma.segundos}
-          conImporte={puedeVerImportes}
+          conImporte={conImportes}
         />
         {miembros.length > 0 && (
           <Desglose
             titulo="Por persona"
             grupos={porPersona}
             total={suma.segundos}
-            conImporte={puedeVerImportes}
+            conImporte={conImportes}
           />
         )}
 
         <Desglose
-          titulo="Por categoría"
-          grupos={porCategoria}
+          titulo="Por área"
+          grupos={porArea}
           total={suma.segundos}
-          conImporte={puedeVerImportes}
+          conImporte={conImportes}
         />
 
         {porEdicion.length > 0 && (
@@ -590,16 +673,16 @@ export function PanelInformes({
             titulo="Por edición"
             grupos={porEdicion}
             total={suma.segundos}
-            conImporte={puedeVerImportes}
+            conImporte={conImportes}
           />
         )}
       </div>
 
       {/* ------------------------------------------------------------ detalle */}
       <section className="card min-w-0 p-4">
-        <div className="mb-3 flex items-center justify-between">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-sm font-semibold">
-            Detalle <span className="text-muted">({filtradas.length})</span>
+            Detalle <span className="text-muted">({filtradas.length.toLocaleString("es-ES")})</span>
           </h2>
           {filtradas.length > 50 && (
             <button
@@ -607,10 +690,30 @@ export function PanelInformes({
               onClick={() => setVerTodo((v) => !v)}
               className="no-print text-xs font-medium text-accent"
             >
-              {verTodo ? "Ver solo las 50 primeras" : `Ver las ${filtradas.length}`}
+              {verTodo ? "Ver solo las 50 primeras" : `Ver las ${filtradas.length.toLocaleString("es-ES")}`}
             </button>
           )}
         </div>
+
+        {/* Una hora que se pisa con otra de la misma persona casi siempre está
+            apuntada dos veces. Se dice una vez, con la manera de verlas. */}
+        {(pisadas.size > 0 || soloPisadas) && (
+          <div className="no-print mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-[var(--radio-sm)] border border-line bg-surface-2 px-3 py-2 text-sm text-ink-soft">
+            <span>
+              {pisadas.size.toLocaleString("es-ES")}{" "}
+              {pisadas.size === 1 ? "hora se pisa" : "horas se pisan"} con otra de la
+              misma persona en este periodo.
+            </span>
+            <button
+              type="button"
+              onClick={() => setSoloPisadas((v) => !v)}
+              aria-pressed={soloPisadas}
+              className="text-sm font-medium text-accent"
+            >
+              {soloPisadas ? "Ver todas" : "Ver solo esas"}
+            </button>
+          </div>
+        )}
 
         {aviso && (
           <div className="no-print mb-3 flex flex-wrap items-center gap-3 rounded-[var(--radio-sm)] border border-line bg-surface-2 px-3 py-2 text-sm text-ink-soft">
@@ -694,8 +797,11 @@ export function PanelInformes({
                   <th className="hidden py-2 pr-3 font-semibold sm:table-cell">
                     Descripción
                   </th>
-                  <th className="py-2 pr-3 text-right font-semibold">Horas</th>
-                  {puedeVerImportes && (
+                  <th className="hidden py-2 pr-3 text-right font-semibold md:table-cell">
+                    Horario
+                  </th>
+                  <th className="py-2 pr-3 text-right font-semibold">Duración</th>
+                  {conImportes && (
                     <th className="hidden py-2 text-right font-semibold sm:table-cell">
                       Importe
                     </th>
@@ -739,6 +845,9 @@ export function PanelInformes({
                       {entrada.locked && (
                         <span className="chip ml-1.5">cerrada</span>
                       )}
+                      {pisadas.has(entrada.id) && (
+                        <span className="chip ml-1.5">se pisa</span>
+                      )}
                     </td>
                     <td className="w-full max-w-0 py-2 pr-3">
                       <span className="flex items-center gap-1.5">
@@ -765,15 +874,18 @@ export function PanelInformes({
                     <td className="hidden max-w-[22rem] truncate py-2 pr-3 text-muted sm:table-cell">
                       {entrada.description || "-"}
                     </td>
+                    <td className="tabular hidden whitespace-nowrap py-2 pr-3 text-right text-muted md:table-cell">
+                      {formatClock(entrada.start_at)}–{formatClock(entrada.end_at)}
+                    </td>
                     <td
                       className={cn(
-                        "tabular py-2 pr-3 text-right font-medium",
+                        "tabular whitespace-nowrap py-2 pr-3 text-right font-medium",
                         entrada.billable && "text-billable",
                       )}
                     >
-                      {formatHoursDecimal(entrada.duration_seconds)}
+                      {formatDurationShort(entrada.duration_seconds)}
                     </td>
-                    {puedeVerImportes && (
+                    {conImportes && (
                       <td className="tabular hidden py-2 text-right sm:table-cell">
                         {entrada.amount != null
                           ? formatMoney(Number(entrada.amount))
@@ -792,7 +904,7 @@ export function PanelInformes({
         <DialogoEntrada
           entrada={editando}
           catalogo={catalogo}
-          miembros={miembros}
+          miembros={miembros.filter((m) => m.active)}
           onCerrar={() => setEditando(null)}
         />
       )}
@@ -808,7 +920,7 @@ function Tarjeta({
 }: {
   etiqueta: string
   valor: string
-  pie: string
+  pie: React.ReactNode
   acento?: boolean
 }) {
   return (

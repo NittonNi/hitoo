@@ -23,9 +23,9 @@ import { esAdmin } from "@/lib/roles"
 import { useSesion } from "@/components/proveedor-sesion"
 import { agrupar, totales } from "@/lib/informes"
 import {
+  formatClock,
   formatDateShort,
   formatDurationShort,
-  formatHoursDecimal,
   formatMoney,
 } from "@/lib/time"
 import { DialogoEntrada } from "@/components/dialogo-entrada"
@@ -576,6 +576,9 @@ function HorasDelProyecto({
   onAbrir: (entrada: EntradaVista) => void
 }) {
   const [edicion, setEdicion] = useState("")
+  /* De cien en cien: pintar las 3.561 horas de NITTON de golpe eran 14 s de
+     pestaña congelada. */
+  const [pintadas, setPintadas] = useState(100)
 
   const suyas = useMemo(() => {
     if (!edicion) return entradas
@@ -584,13 +587,14 @@ function HorasDelProyecto({
   }, [entradas, edicion])
 
   const segundos = suyas.reduce((s, e) => s + (e.duration_seconds ?? 0), 0)
+  const visibles = suyas.slice(0, pintadas)
 
   return (
     <section className="card p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
           <h2 className="text-sm font-semibold">
-            Horas <span className="text-muted">({suyas.length})</span>
+            Horas <span className="text-muted">({suyas.length.toLocaleString("es-ES")})</span>
           </h2>
           <p className="text-sm text-muted">
             Pulsa una para corregirla, igual que en los informes.
@@ -605,8 +609,11 @@ function HorasDelProyecto({
             <select
               className="field w-auto py-1"
               value={edicion}
-              onChange={(e) => setEdicion(e.target.value)}
-              aria-label="Edicion"
+              onChange={(e) => {
+                setEdicion(e.target.value)
+                setPintadas(100)
+              }}
+              aria-label="Edición"
             >
               <option value="">Todas las ediciones</option>
               {ediciones.map((e) => (
@@ -614,7 +621,7 @@ function HorasDelProyecto({
                   {e.name}
                 </option>
               ))}
-              <option value="sin">Sin edicion</option>
+              <option value="sin">Sin edición</option>
             </select>
           )}
         </div>
@@ -622,7 +629,7 @@ function HorasDelProyecto({
 
       {suyas.length === 0 ? (
         <p className="py-3 text-sm text-muted">
-          Todavia no hay horas apuntadas aqui.
+          Todavía no hay horas apuntadas aquí.
         </p>
       ) : (
         <div className="scroll-thin overflow-x-auto">
@@ -630,14 +637,15 @@ function HorasDelProyecto({
             <thead>
               <tr>
                 <th className="th">Fecha</th>
+                <th className="th hidden md:table-cell">Horario</th>
                 <th className="th">Persona</th>
                 <th className="th">Descripción</th>
-                <th className="th text-right">Horas</th>
+                <th className="th text-right">Duración</th>
                 {conImportes && <th className="th text-right">Importe</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
-              {suyas.map((entrada) => (
+              {visibles.map((entrada) => (
                 <tr
                   key={entrada.id}
                   onClick={() => onAbrir(entrada)}
@@ -646,6 +654,9 @@ function HorasDelProyecto({
                 >
                   <td className="cifra whitespace-nowrap py-2 pr-3 text-muted">
                     {formatDateShort(entrada.local_date)}
+                  </td>
+                  <td className="cifra hidden whitespace-nowrap py-2 pr-3 text-muted md:table-cell">
+                    {formatClock(entrada.start_at)}–{formatClock(entrada.end_at)}
                   </td>
                   <td className="whitespace-nowrap py-2 pr-3">
                     {entrada.user_name}
@@ -667,12 +678,12 @@ function HorasDelProyecto({
                           aria-label="Facturable"
                         />
                       )}
-                      {formatHoursDecimal(entrada.duration_seconds)}
+                      {formatDurationShort(entrada.duration_seconds)}
                     </span>
                   </td>
                   {conImportes && (
                     <td className="cifra py-2 text-right text-billable">
-                      {entrada.amount != null
+                      {entrada.amount
                         ? formatMoney(Number(entrada.amount))
                         : "-"}
                     </td>
@@ -681,6 +692,16 @@ function HorasDelProyecto({
               ))}
             </tbody>
           </table>
+          {suyas.length > pintadas && (
+            <div className="flex flex-wrap items-center justify-center gap-2 pt-3">
+              <button type="button" onClick={() => setPintadas((n) => n + 100)} className="btn">
+                Ver 100 más
+              </button>
+              <button type="button" onClick={() => setPintadas(suyas.length)} className="btn btn-ghost">
+                Ver las {suyas.length.toLocaleString("es-ES")}
+              </button>
+            </div>
+          )}
         </div>
       )}
     </section>

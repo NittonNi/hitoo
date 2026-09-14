@@ -100,9 +100,10 @@ const PRESETS: Preset[] = [
 ]
 
 /**
- * Los colores del donut. No se usa el de cada área a proposito: nacen todas
- * del mismo gris y el grafico salia de un solo color.
+ * Los colores del donut para las áreas sin color propio: nacen todas del mismo
+ * gris (`COLOR_AREA_INICIAL`) y el grafico salia de un solo color.
  */
+const COLOR_AREA_INICIAL = "#86868b"
 const PALETA = [
   "var(--accent)",
   "var(--billable-fill)",
@@ -166,7 +167,10 @@ export function PanelEstadisticas({
   objetivoSemanaMinutos,
   repartos,
   repartoShares,
+  hayTarifas,
 }: {
+  /** Sin tarifas no hay €/h que dar: se dice, en vez de un 0 €/h en rojo. */
+  hayTarifas: boolean
   entradas: EntradaVista[]
   catalogo: Catalogo
   miembros: Miembro[]
@@ -184,9 +188,8 @@ export function PanelEstadisticas({
 
   const [preset, setPreset] = useState("12m")
   const [rangoLibre, setRangoLibre] = useState<Rango | null>(null)
-  const [ambito, setAmbito] = useState<"mias" | "equipo">(
-    hayEquipo ? "equipo" : "mias",
-  )
+  /* Un solo mando para de quién son las horas: el filtro de personas. «Solo
+     mis horas» es marcarte a ti, que sale el primero. */
   const [personas, setPersonas] = useState<string[]>([])
   const [filtros, setFiltros] = useState<Filtros>(SIN_FILTROS)
   const [comparar, setComparar] = useState(true)
@@ -212,13 +215,11 @@ export function PanelEstadisticas({
   /* -------------------------------------------------------------- filtrar */
 
   const suyas = useMemo(() => {
-    const base = entradas.filter(
-      (e) => e.end_at && (ambito === "equipo" || e.user_id === perfilId),
-    )
+    const base = entradas.filter((e) => e.end_at)
     const porPersona =
       personas.length > 0 ? base.filter((e) => personas.includes(e.user_id)) : base
     return filtrarHoras(porPersona, filtros)
-  }, [entradas, ambito, perfilId, personas, filtros])
+  }, [entradas, personas, filtros])
 
   /* El foco es un filtro mas, puesto encima de todos los demas: clicar un
      dato de cualquier grafica acota el resto de la pagina a eso. */
@@ -273,11 +274,14 @@ export function PanelEstadisticas({
   /* El color de cada area es fijo -sale del catalogo entero, no de la
      posicion en la lista filtrada-: si no, al clicar y quedar una sola area
      visible, esa area "roba" siempre el primer color de la paleta en vez de
-     mantener el suyo. */
+     mantener el suyo. Si el area tiene color propio (no el gris con el que
+     nace), manda el suyo, que es la familia de sus proyectos. */
   const coloresArea = useMemo(() => {
     const mapa = new Map<string, string>()
     const raices = categoriasRaiz(catalogo.categorias)
-    raices.forEach((c, i) => mapa.set(c.id, PALETA[i % PALETA.length]))
+    raices.forEach((c, i) =>
+      mapa.set(c.id, c.color && c.color !== COLOR_AREA_INICIAL ? c.color : PALETA[i % PALETA.length]),
+    )
     mapa.set("sin", PALETA[raices.length % PALETA.length])
     return mapa
   }, [catalogo.categorias])
@@ -399,6 +403,15 @@ export function PanelEstadisticas({
     .filter((e) => e.local_date === todayKey())
     .reduce((s, e) => s + (e.duration_seconds ?? 0), 0)
   const semanaSegundos = semanaActual.reduce((s, e) => s + (e.duration_seconds ?? 0), 0)
+  /* El objetivo del espacio es de una persona -8 h al día-: con el equipo
+     entero se multiplica por quien apunta de verdad, que es quien ha puesto
+     horas en las últimas cuatro semanas. Contar a todos los miembros metería
+     plazas viejas y cuentas de prueba. */
+  const genteObjetivo = useMemo(() => {
+    if (personas.length > 0) return personas.length
+    const desde = toDateKey(addDays(new Date(), -27))
+    return Math.max(1, new Set(suyas.filter((e) => e.local_date >= desde).map((e) => e.user_id)).size)
+  }, [personas, suyas])
   const porRama = useMemo(() => {
     const segundosPorCategoria = new Map<string, number>()
     for (const e of semanaActual) {
@@ -427,8 +440,11 @@ export function PanelEstadisticas({
 
   const dias = diasDe(rango)
   const conHoras = new Set(dentroDel.map((e) => e.local_date)).size
-  const mediaDia = conHoras > 0 ? suma.segundos / conHoras : 0
   const gente = new Set(dentroDel.map((e) => e.user_id)).size
+  /* Por persona y día trabajado: sumar a todo el equipo y dividir entre días
+     daba 53 h «al día». Cada persona cuenta los días en que ella apuntó. */
+  const personaDias = new Set(dentroDel.map((e) => `${e.user_id}|${e.local_date}`)).size
+  const mediaDia = personaDias > 0 ? suma.segundos / personaDias : 0
 
   /* Igual que en el proyecto: con menos de una hora cobrable esto no es un
      dato, es una division. */
@@ -550,31 +566,16 @@ export function PanelEstadisticas({
 
         <div className="flex flex-wrap items-center gap-2">
           {hayEquipo && (
-            <div className="flex rounded-[3px] border border-line-strong bg-surface p-0.5 text-sm">
-              {(["equipo", "mias"] as const).map((cual) => (
-                <button
-                  key={cual}
-                  type="button"
-                  onClick={() => setAmbito(cual)}
-                  aria-pressed={ambito === cual}
-                  className={cn(
-                    "whitespace-nowrap rounded-[2px] px-2.5 py-1 transition",
-                    ambito === cual
-                      ? "bg-accent-soft font-medium text-accent"
-                      : "text-muted hover:text-ink",
-                  )}
-                >
-                  {cual === "equipo" ? "Todo el equipo" : "Solo mis horas"}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {hayEquipo && ambito === "equipo" && (
             <FiltroMultiple
               etiqueta="Personas"
               todos="Todo el equipo"
-              opciones={miembros.map((m) => ({ id: m.id, nombre: m.full_name }))}
+              opciones={[...miembros]
+                .sort((a, b) => Number(b.id === perfilId) - Number(a.id === perfilId))
+                .map((m) => ({
+                  id: m.id,
+                  nombre: m.id === perfilId ? `${m.full_name} (tú)` : m.full_name,
+                  detalle: m.sin_cuenta ? "plaza" : !m.active ? "desactivado" : undefined,
+                }))}
               elegidas={personas}
               onChange={setPersonas}
             />
@@ -633,11 +634,17 @@ export function PanelEstadisticas({
           }
         />
         <Cifra
-          etiqueta="Media al día"
+          etiqueta={gente > 1 ? "Media por persona y día" : "Media al día"}
           valor={formatDurationShort(mediaDia)}
-          pie={gente === 1 ? "de quien apunta" : `entre ${gente} personas`}
+          pie={gente > 1 ? `${gente} personas con horas` : "en los días con horas"}
         />
-        {puedeVerImportes ? (
+        {puedeVerImportes && !hayTarifas ? (
+          <Cifra
+            etiqueta="Por hora"
+            valor="Sin tarifas"
+            pie={objetivoHora ? `objetivo ${objetivoHora} €/h` : "ponlas en Tarifas"}
+          />
+        ) : puedeVerImportes ? (
           <Cifra
             etiqueta={porHora !== null ? "Por hora" : "Facturado"}
             valor={
@@ -675,21 +682,27 @@ export function PanelEstadisticas({
         <section className="card p-4">
           <h2 className="text-sm font-semibold">Objetivos</h2>
           <p className="mb-3 mt-0.5 text-xs text-muted">
-            Hoy y esta semana, al margen del periodo que se este mirando arriba.
+            Hoy y esta semana, al margen del periodo que se esté mirando arriba.
+            {genteObjetivo > 1 &&
+              (personas.length > 0
+                ? " El objetivo de una persona, por cada una de las elegidas."
+                : " El objetivo de una persona, por cada una que ha apuntado en las últimas cuatro semanas.")}
           </p>
           <div className="space-y-3">
             {objetivoDiaMinutos && (
               <BarraObjetivo
-                etiqueta="Hoy"
+                etiqueta={genteObjetivo > 1 ? `Hoy · ${genteObjetivo} personas` : "Hoy"}
                 segundos={hoySegundos}
-                objetivoMinutos={objetivoDiaMinutos}
+                objetivoMinutos={objetivoDiaMinutos * genteObjetivo}
               />
             )}
             {objetivoSemanaMinutos && (
               <BarraObjetivo
-                etiqueta="Esta semana"
+                etiqueta={
+                  genteObjetivo > 1 ? `Esta semana · ${genteObjetivo} personas` : "Esta semana"
+                }
                 segundos={semanaSegundos}
-                objetivoMinutos={objetivoSemanaMinutos}
+                objetivoMinutos={objetivoSemanaMinutos * genteObjetivo}
               />
             )}
             {porRama.map((r) => (

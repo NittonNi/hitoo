@@ -33,6 +33,10 @@ export function GraficoPersonasEstadisticas({
   onAlternarFoco: (foco: Foco) => void
   desglosePersona: Map<string, Grupo[]>
 }) {
+  // Con 110 fijos, «Alain García de León» salía cortado por la izquierda:
+  // el eje se ensancha con el nombre más largo, con tope para el móvil.
+  const masLargo = Math.max(0, ...porPersona.map((g) => g.etiqueta.length))
+  const anchoEje = Math.min(160, Math.max(90, Math.round(masLargo * 7) + 8))
   return (
     <ResponsiveContainer width="100%" height="100%">
       <BarChart
@@ -55,7 +59,7 @@ export function GraficoPersonasEstadisticas({
         <YAxis
           type="category"
           dataKey="nombre"
-          width={110}
+          width={anchoEje}
           tick={{ fontSize: 12, fill: "var(--ink)" }}
           tickLine={false}
           axisLine={false}

@@ -24,7 +24,7 @@ export function GraficoResumenProyecto({
 }) {
   return (
     <ResponsiveContainer width="100%" height="100%">
-      <BarChart data={filas} margin={{ top: 4, right: 4, left: -18, bottom: 0 }}>
+      <BarChart data={filas} margin={{ top: 4, right: 4, left: -4, bottom: 0 }}>
         <CartesianGrid strokeDasharray="2 4" vertical={false} stroke="var(--line)" />
         <XAxis
           dataKey="etiqueta"
@@ -36,7 +36,8 @@ export function GraficoResumenProyecto({
           tick={{ fontSize: 11, fill: "var(--muted)" }}
           tickLine={false}
           axisLine={false}
-          width={44}
+          width={52}
+          tickFormatter={(n: number) => n.toLocaleString("es-ES")}
         />
         <Tooltip
           cursor={{ fill: "var(--surface-2)" }}

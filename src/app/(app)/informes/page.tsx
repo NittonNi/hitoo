@@ -1,9 +1,9 @@
 import { getSesion } from "@/lib/sesion"
 import { PistaPagina } from "@/components/pista-pagina"
 import { esAdmin, veTodo } from "@/lib/roles"
-import { cargarCatalogo, cargarEntradas, cargarMiembros } from "@/lib/datos"
+import { cargarCatalogo, cargarEntradas, cargarMiembros, hayTarifas } from "@/lib/datos"
 import { PanelInformes } from "@/components/panel-informes"
-import { toDateKey, todayKey } from "@/lib/time"
+import { todayKey } from "@/lib/time"
 
 export const metadata = { title: "Informes" }
 
@@ -18,16 +18,12 @@ export default async function PaginaInformes({
   const { perfil, espacio, rol } = await getSesion()
   const gestor = veTodo(rol)
 
-  // Por defecto, el mes en curso
-  const hoy = new Date()
-  const desde = ES_FECHA.test(parametros.desde ?? "")
-    ? parametros.desde!
-    : toDateKey(new Date(hoy.getFullYear(), hoy.getMonth(), 1))
-  const hasta = ES_FECHA.test(parametros.hasta ?? "")
-    ? parametros.hasta!
-    : todayKey(espacio.timezone)
+  // Por defecto, el mes en curso, contado en el día del espacio y no en el del servidor
+  const hoy = todayKey(espacio.timezone)
+  const desde = ES_FECHA.test(parametros.desde ?? "") ? parametros.desde! : hoy.slice(0, 8) + "01"
+  const hasta = ES_FECHA.test(parametros.hasta ?? "") ? parametros.hasta! : hoy
 
-  const [catalogo, entradas, miembros] = await Promise.all([
+  const [catalogo, entradas, miembros, conTarifas] = await Promise.all([
     cargarCatalogo(espacio.id, true),
     // Las horas del espacio son del espacio: se ven todas y se corrigen todas
     cargarEntradas({
@@ -36,6 +32,7 @@ export default async function PaginaInformes({
       hasta,
     }),
     cargarMiembros(espacio.id),
+    gestor ? hayTarifas(espacio.id) : Promise.resolve(false),
   ])
 
   return (
@@ -56,11 +53,14 @@ export default async function PaginaInformes({
       <PanelInformes
         entradas={entradas}
         catalogo={catalogo}
-        miembros={miembros.filter((m) => m.active)}
+        // También quien está desactivado: sus horas siguen en el periodo, y
+        // sin él en la lista, «marcar todos» las dejaba fuera
+        miembros={miembros}
         desde={desde}
         hasta={hasta}
         puedeVerImportes={gestor}
         puedeAbrirCerradas={esAdmin(rol)}
+        hayTarifas={conTarifas}
       />
     </div>
   )

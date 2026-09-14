@@ -47,12 +47,24 @@ export function filtrarHoras(entradas: EntradaVista[], filtros: Filtros) {
     }
     if (
       filtros.etiquetas.length > 0 &&
-      !filtros.etiquetas.some((t) => entrada.tags.includes(t))
+      !filtros.etiquetas.some((t) =>
+        t === SIN_NADA ? entrada.tags.length === 0 : entrada.tags.includes(t),
+      )
     ) {
       return false
     }
     return true
   })
+}
+
+/**
+ * Los proyectos para un filtro: primero los vivos y detrás los archivados,
+ * marcados. Sin los archivados, «marcar todos» dejaba fuera sus horas.
+ */
+export function opcionesDeProyectos(catalogo: Pick<Catalogo, "proyectos">) {
+  return [...catalogo.proyectos]
+    .sort((a, b) => Number(a.archived) - Number(b.archived) || a.name.localeCompare(b.name))
+    .map((p) => ({ id: p.id, nombre: p.name, detalle: p.archived ? "archivado" : undefined }))
 }
 
 /**
@@ -89,9 +101,7 @@ export function FiltrosDeHoras({
         etiqueta="Proyectos"
         todos="Todos los proyectos"
         opciones={[
-          ...catalogo.proyectos
-            .filter((p) => !p.archived)
-            .map((p) => ({ id: p.id, nombre: p.name })),
+          ...opcionesDeProyectos(catalogo),
           { id: SIN_NADA, nombre: "Sin proyecto" },
         ]}
         elegidas={valor.proyectos}
@@ -102,10 +112,10 @@ export function FiltrosDeHoras({
         <FiltroMultiple
           etiqueta="Etiquetas"
           todos="Todas las etiquetas"
-          opciones={catalogo.etiquetas.map((t) => ({
-            id: t.name,
-            nombre: t.name,
-          }))}
+          opciones={[
+            ...catalogo.etiquetas.map((t) => ({ id: t.name, nombre: t.name })),
+            { id: SIN_NADA, nombre: "Sin etiqueta" },
+          ]}
           elegidas={valor.etiquetas}
           onChange={(etiquetas) => onChange({ ...valor, etiquetas })}
         />

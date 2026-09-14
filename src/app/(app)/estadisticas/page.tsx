@@ -6,9 +6,10 @@ import {
   cargarEntradasEstadisticas,
   cargarMiembros,
   cargarReparto,
+  hayTarifas,
 } from "@/lib/datos"
 import { PanelEstadisticas } from "@/components/panel-estadisticas"
-import { toDateKey, todayKey } from "@/lib/time"
+import { todayKey } from "@/lib/time"
 
 export const metadata = { title: "Estadísticas" }
 
@@ -19,14 +20,15 @@ export default async function PaginaEstadisticas() {
   /* Dos años: uno para mirar y otro para poder compararlo con el anterior sin
      que la comparación salga siempre vacía. Cubre tambien de sobra la semana
      actual, que hace falta para los objetivos. */
-  const hoy = new Date()
-  const desde = toDateKey(new Date(hoy.getFullYear() - 2, hoy.getMonth(), 1))
+  const hoy = todayKey(espacio.timezone)
+  const desde = `${Number(hoy.slice(0, 4)) - 2}-${hoy.slice(5, 7)}-01`
 
-  const [catalogo, entradas, miembros, reparto] = await Promise.all([
+  const [catalogo, entradas, miembros, reparto, conTarifas] = await Promise.all([
     cargarCatalogo(espacio.id, true),
-    cargarEntradasEstadisticas(espacio.id, desde, todayKey(espacio.timezone)),
+    cargarEntradasEstadisticas(espacio.id, desde, hoy),
     cargarMiembros(espacio.id),
     cargarReparto(espacio.id),
+    gestor ? hayTarifas(espacio.id) : Promise.resolve(false),
   ])
 
   return (
@@ -46,7 +48,9 @@ export default async function PaginaEstadisticas() {
       <PanelEstadisticas
         entradas={entradas}
         catalogo={catalogo}
-        miembros={miembros.filter((m) => m.active)}
+        // También quien está desactivado: sus horas del periodo siguen contando
+        miembros={miembros}
+        hayTarifas={conTarifas}
         perfilId={perfil.id}
         puedeVerImportes={gestor}
         objetivoHora={espacio.target_hourly_rate}
