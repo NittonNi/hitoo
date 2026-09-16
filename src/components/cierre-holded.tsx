@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { AlertTriangle, Loader2, Plus, RefreshCw, Search, Unlink, X } from "lucide-react"
+import { AlertTriangle, Link2, Loader2, Plus, RefreshCw, Search, X } from "lucide-react"
 
 import { createClient } from "@/lib/supabase/client"
 import { mensajeError } from "@/lib/errores"
@@ -18,9 +18,8 @@ import {
 } from "@/lib/holded"
 import {
   actualizarHolded,
-  desenlazarCierre,
-  enlazarCierre,
-  reenlazarCierre,
+  aparcarHolded,
+  enlazarHolded,
 } from "@/app/(app)/gestion/holded/acciones"
 import type { Resultado } from "@/components/resultados-proyecto"
 import { cn } from "@/lib/utils"
@@ -28,14 +27,17 @@ import { cn } from "@/lib/utils"
 /* ================================================================ enlazar */
 
 /**
- * Elegir con qué proyecto de Holded va este cierre. Se abre en la propia
- * tarjeta, sin diálogo: primero sale el que más se parece por nombre.
+ * Elegir un proyecto de Holded para este cierre. Se abre en la propia
+ * tarjeta, sin diálogo: primero sale el que más se parece por nombre. Si ya
+ * estaba en otro cierre, se mueve aquí con sus cifras; si el cierre ya tenía
+ * alguno, se suman.
  */
 export function EnlazarHolded({
   proyectoId,
   edicionId,
   nombre,
   holded,
+  excluir = [],
   onCerrar,
 }: {
   proyectoId: string
@@ -43,6 +45,8 @@ export function EnlazarHolded({
   /** «Proyecto · Edición», para proponer el que más se parece. */
   nombre: string
   holded: DatosHolded
+  /** Los que ya están en este cierre. */
+  excluir?: string[]
   onCerrar: () => void
 }) {
   const router = useRouter()
@@ -56,23 +60,26 @@ export function EnlazarHolded({
       .replace(/[̀-ͯ]/g, "")
       .toLowerCase()
       .trim()
-    const ordenados = ordenarPorParecido(holded.proyectos, q || nombre).map((x) => x.p)
+    const ordenados = ordenarPorParecido(
+      holded.proyectos.filter((p) => !excluir.includes(p.holded_id)),
+      q || nombre,
+    ).map((x) => x.p)
     const filtrados = q
       ? ordenados.filter((p) =>
           p.name.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().includes(q),
         )
       : ordenados
-    // Los que ya están enlazados con otro cierre, al final: no se pueden elegir
+    // Los que ya están en otro cierre, al final: elegirlos los mueve
     const libresPrimero = [
       ...filtrados.filter((p) => !holded.enlazados[p.holded_id]),
       ...filtrados.filter((p) => holded.enlazados[p.holded_id]),
     ]
     return libresPrimero.slice(0, 8)
-  }, [busqueda, holded.proyectos, holded.enlazados, nombre])
+  }, [busqueda, holded.proyectos, holded.enlazados, nombre, excluir])
 
   async function enlazar(holdedId: string, nombreHolded: string) {
     setEnlazando(holdedId)
-    const r = await enlazarCierre({ proyectoId, edicionId, holdedId })
+    const r = await enlazarHolded(holdedId, { proyectoId, edicionId })
     setEnlazando(null)
     if ("error" in r) {
       avisar(r.error, undefined, "mal")
@@ -80,8 +87,9 @@ export function EnlazarHolded({
       return
     }
     onCerrar()
-    avisar(`Enlazado con ${nombreHolded}.`, async () => {
-      const d = await desenlazarCierre(r.cierreId)
+    const texto = `Enlazado con ${nombreHolded}.`
+    avisar(r.aviso ? `${texto} ${r.aviso}` : texto, async () => {
+      const d = r.antes ? await enlazarHolded(holdedId, r.antes) : await aparcarHolded(holdedId)
       router.refresh()
       if ("error" in d) return d.error
     })
@@ -120,22 +128,20 @@ export function EnlazarHolded({
         <ul className="divide-y divide-line overflow-hidden rounded-[var(--radio-sm)] border border-line">
           {opciones.map((p) => {
             const enOtro = holded.enlazados[p.holded_id]
-            const ocupado = Boolean(enOtro)
             return (
               <li key={p.holded_id}>
                 <button
                   type="button"
-                  disabled={ocupado || enlazando !== null}
+                  disabled={enlazando !== null}
                   onClick={() => void enlazar(p.holded_id, p.name)}
-                  className={cn(
-                    "flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition",
-                    ocupado ? "cursor-not-allowed text-muted" : "hover:bg-surface-2",
-                  )}
+                  className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition hover:bg-surface-2"
                 >
                   <span className="min-w-0">
                     <span className="block truncate">{p.name}</span>
-                    {ocupado && (
-                      <span className="block truncate text-xs">ya enlazado con {enOtro}</span>
+                    {enOtro && (
+                      <span className="block truncate text-xs text-muted">
+                        ahora en {enOtro}: se mueve aquí
+                      </span>
                     )}
                   </span>
                   <span className="cifra shrink-0 text-xs text-muted">
@@ -158,25 +164,32 @@ export function EnlazarHolded({
 /* ================================================================ desglose */
 
 /**
- * Un cierre enlazado: de dónde sale cada cifra. Lo que dice Holded, cada
- * ajuste con su nota y su firma, y las facturas anuladas que Holded cuenta.
- * El total no se calcula aquí: lo calcula la base, y aquí solo se enseña.
+ * Un cierre enlazado: de dónde sale cada cifra. Los proyectos de Holded que
+ * junta, cada ajuste con su nota y su firma, y las facturas anuladas que
+ * Holded cuenta. El total no se calcula aquí: lo calcula la base, y aquí solo
+ * se enseña.
  */
 export function DesgloseHolded({
   espacioId,
   resultado,
+  proyectoId,
+  nombre,
   holded,
   puedeGestionar,
 }: {
   espacioId: string
   resultado: Resultado
+  proyectoId: string
+  /** «Proyecto Edición», para proponer el que más se parece al juntar otro. */
+  nombre: string
   holded: DatosHolded
   puedeGestionar: boolean
 }) {
   const router = useRouter()
   const { avisar } = useAvisos()
   const [actualizando, setActualizando] = useState(false)
-  const [desenlazando, setDesenlazando] = useState(false)
+  const [quitando, setQuitando] = useState<string | null>(null)
+  const [juntando, setJuntando] = useState(false)
   const [nuevo, setNuevo] = useState<{
     campo: "income" | "expenses"
     importe: string
@@ -186,9 +199,12 @@ export function DesgloseHolded({
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const holdedId = resultado.holded_project_id!
-  const nombreHolded =
-    holded.proyectos.find((p) => p.holded_id === holdedId)?.name ?? null
+  const suyos = holded.enlaces
+    .filter((e) => e.resultId === resultado.id)
+    .map((e) => ({
+      ...e,
+      nombre: holded.proyectos.find((p) => p.holded_id === e.holdedId)?.name ?? "Ya no está en Holded",
+    }))
   const ajustes = holded.ajustes.filter((a) => a.result_id === resultado.id)
   const anuladas = anuladasPendientes(
     (Array.isArray(resultado.holded_cancelled) ? resultado.holded_cancelled : []) as HoldedAnulada[],
@@ -204,18 +220,19 @@ export function DesgloseHolded({
     router.refresh()
   }
 
-  async function desenlazar() {
-    setDesenlazando(true)
-    const r = await desenlazarCierre(resultado.id)
-    setDesenlazando(false)
+  /** Lo deja «por decidir» en Gestión → Holded, con sus cifras guardadas. */
+  async function quitar(holdedId: string, nombreHolded: string) {
+    setQuitando(holdedId)
+    const r = await aparcarHolded(holdedId)
+    setQuitando(null)
     if ("error" in r) {
       avisar(r.error, undefined, "mal")
       return
     }
-    avisar("Desenlazado: el cierre se queda con la última cifra, a mano.", async () => {
-      const d = await reenlazarCierre(resultado.id, holdedId)
+    avisar(`${nombreHolded} ya no cuenta aquí: queda por decidir.`, async () => {
+      const d = r.antes ? await enlazarHolded(holdedId, r.antes) : null
       router.refresh()
-      if ("error" in d) return d.error
+      if (d && "error" in d) return d.error
     })
     router.refresh()
   }
@@ -309,6 +326,51 @@ export function DesgloseHolded({
 
   return (
     <div className="space-y-3">
+      <div className="space-y-1.5">
+        <ul className="space-y-1">
+          {suyos.map((e) => (
+            <li key={e.holdedId} className="flex items-start justify-between gap-2 text-xs">
+              <div className="min-w-0">
+                <p className="truncate text-ink-soft">Holded · {e.nombre}</p>
+                <p className="cifra text-muted">
+                  {e.income === null && e.expenses === null
+                    ? "sin cifras todavía"
+                    : `${formatMoney(e.income)} − ${formatMoney(e.expenses)}`}
+                </p>
+              </div>
+              {puedeGestionar && (
+                <button
+                  type="button"
+                  onClick={() => void quitar(e.holdedId, e.nombre)}
+                  disabled={quitando !== null}
+                  className="btn h-7 shrink-0 px-2 text-xs"
+                >
+                  {quitando === e.holdedId && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                  Quitar
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+        {puedeGestionar &&
+          holded.conectado &&
+          (juntando ? (
+            <EnlazarHolded
+              proyectoId={proyectoId}
+              edicionId={resultado.edition_id}
+              nombre={nombre}
+              holded={holded}
+              excluir={suyos.map((e) => e.holdedId)}
+              onCerrar={() => setJuntando(false)}
+            />
+          ) : (
+            <button type="button" onClick={() => setJuntando(true)} className="btn h-7 px-2 text-xs">
+              <Link2 className="h-3.5 w-3.5" />
+              Juntar otro de Holded
+            </button>
+          ))}
+      </div>
+
       <dl className="space-y-2 text-sm">
         {filas.map((fila) => (
           <div key={fila.campo}>
@@ -317,7 +379,9 @@ export function DesgloseHolded({
               <dd className="cifra font-semibold">{formatMoney(fila.total)}</dd>
             </div>
             <div className="flex items-baseline justify-between gap-3 pl-3 text-xs text-muted">
-              <span className="min-w-0 truncate">Holded{nombreHolded ? ` · ${nombreHolded}` : ""}</span>
+              <span className="min-w-0 truncate">
+                {suyos.length === 1 ? "Holded" : `Holded, ${suyos.length} proyectos`}
+              </span>
               <span className="cifra shrink-0">
                 {fila.deHolded === null ? "—" : formatMoney(Number(fila.deHolded))}
               </span>
@@ -467,16 +531,6 @@ export function DesgloseHolded({
                 Actualizar
               </button>
             )}
-            <button
-              type="button"
-              onClick={() => void desenlazar()}
-              disabled={desenlazando}
-              className="btn h-8 text-xs"
-              title="Dejar este cierre a mano"
-            >
-              <Unlink className="h-3.5 w-3.5" />
-              Desenlazar
-            </button>
           </div>
         )}
       </div>

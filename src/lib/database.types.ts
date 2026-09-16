@@ -1,7 +1,3 @@
-// Generado desde el esquema de Supabase. Para regenerar:
-//   npx supabase gen types typescript --project-id <PROJECT_ID> > src/lib/database.types.ts
-// No editar a mano.
-
 export type Json =
   | string
   | number
@@ -65,6 +61,38 @@ export type Database = {
           },
           {
             foreignKeyName: "categories_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      deshacer_meter: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          datos: Json
+          id: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          datos: Json
+          id?: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          datos?: Json
+          id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deshacer_meter_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "workspaces"
@@ -294,6 +322,54 @@ export type Database = {
             foreignKeyName: "holded_credentials_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: true
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      holded_enlaces: {
+        Row: {
+          cancelled: Json
+          expenses: number | null
+          holded_project_id: string
+          income: number | null
+          result_id: string | null
+          synced_at: string | null
+          updated_at: string
+          workspace_id: string
+        }
+        Insert: {
+          cancelled?: Json
+          expenses?: number | null
+          holded_project_id: string
+          income?: number | null
+          result_id?: string | null
+          synced_at?: string | null
+          updated_at?: string
+          workspace_id: string
+        }
+        Update: {
+          cancelled?: Json
+          expenses?: number | null
+          holded_project_id?: string
+          income?: number | null
+          result_id?: string | null
+          synced_at?: string | null
+          updated_at?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "holded_enlaces_result_id_fkey"
+            columns: ["result_id"]
+            isOneToOne: false
+            referencedRelation: "project_results"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "holded_enlaces_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
             referencedRelation: "workspaces"
             referencedColumns: ["id"]
           },
@@ -1453,6 +1529,10 @@ export type Database = {
       }
     }
     Functions: {
+      ajustes_del_cierre: {
+        Args: { p_campo: string; p_result: string }
+        Returns: number
+      }
       aplicar_codigo_prueba: {
         Args: { p_codigo: string; p_workspace: string }
         Returns: string
@@ -1501,6 +1581,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      deshacer_meter: { Args: { p_id: string }; Returns: Json }
       entradas_estadisticas: {
         Args: { p_desde: string; p_hasta: string; p_workspace: string }
         Returns: Json
@@ -1524,6 +1605,7 @@ export type Database = {
           user_id: string
         }[]
       }
+      horas_por_sitio: { Args: { p_workspace: string }; Returns: Json }
       is_admin: { Args: { p_workspace: string }; Returns: boolean }
       is_member: { Args: { p_workspace: string }; Returns: boolean }
       join_workspace: {
@@ -1541,6 +1623,17 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      meter_en: {
+        Args: {
+          p_destino_edicion: string
+          p_destino_proyecto: string
+          p_nombre?: string
+          p_nueva?: boolean
+          p_origen_edicion: string
+          p_origen_proyecto: string
+        }
+        Returns: Json
       }
       mis_invitaciones: {
         Args: { p_workspace: string }

@@ -564,6 +564,8 @@ function Tarjeta({
               <DesgloseHolded
                 espacioId={espacioId}
                 resultado={resultado}
+                proyectoId={proyectoId}
+                nombre={nombreCierre}
                 holded={holded}
                 puedeGestionar={puedeGestionar}
               />

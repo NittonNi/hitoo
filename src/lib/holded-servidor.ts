@@ -216,15 +216,18 @@ export type ResultadoActualizar =
 /**
  * Trae de Holded lo que hace falta y lo guarda:
  * - el listado de proyectos (para el selector),
- * - el resumen de cada cierre enlazado (ventas y gastos, sin IVA),
+ * - el resumen de cada proyecto enlazado (ventas y gastos, sin IVA), en su
+ *   enlace: la base suma los enlaces de cada cierre,
  * - las facturas, para encontrar las anuladas que Holded cuenta.
  *
- * `soloCierre` actualiza un único cierre (el botón de la tarjeta).
- * `sinCerradas` salta los cierres de ediciones cerradas (la vuelta diaria).
+ * `soloCierre` actualiza los enlaces de un único cierre (el botón de la
+ * tarjeta) y `soloHolded`, unos proyectos de Holded concretos (los recién
+ * enlazados). `sinCerradas` salta los cierres de ediciones cerradas (la vuelta
+ * diaria). Los enlaces aparcados, sin sitio, no se actualizan.
  */
 export async function actualizarEspacio(
   espacioId: string,
-  opciones: { soloCierre?: string; sinCerradas?: boolean } = {},
+  opciones: { soloCierre?: string; soloHolded?: string[]; sinCerradas?: boolean } = {},
 ): Promise<ResultadoActualizar> {
   const db = servicio()
   const clave = await leerClave(espacioId)
@@ -234,8 +237,8 @@ export async function actualizarEspacio(
   let aviso: string | null = null
 
   try {
-    // 1. El listado, salvo si solo se actualiza una tarjeta
-    if (!opciones.soloCierre) {
+    // 1. El listado, salvo si solo se actualiza una tarjeta o unos enlaces
+    if (!opciones.soloCierre && !opciones.soloHolded) {
       const proyectos = await todasLasPaginas<ProyectoApi>(clave, "/projects")
       const ahora = new Date().toISOString()
       if (proyectos.length > 0) {
@@ -259,31 +262,36 @@ export async function actualizarEspacio(
       if (error) throw error
     }
 
-    // 2. Los cierres enlazados
+    // 2. Los enlaces que tienen sitio
     let consulta = db
-      .from("project_results")
-      .select("id, holded_project_id, edition_id, project_editions(archived)")
+      .from("holded_enlaces")
+      .select("holded_project_id, project_results!inner(project_editions(archived))")
       .eq("workspace_id", espacioId)
-      .not("holded_project_id", "is", null)
-    if (opciones.soloCierre) consulta = consulta.eq("id", opciones.soloCierre)
-    const { data: cierres, error: errCierres } = await consulta
-    if (errCierres) throw errCierres
+      .not("result_id", "is", null)
+    if (opciones.soloCierre) consulta = consulta.eq("result_id", opciones.soloCierre)
+    if (opciones.soloHolded) consulta = consulta.in("holded_project_id", opciones.soloHolded)
+    const { data: enlaces, error: errEnlaces } = await consulta
+    if (errEnlaces) throw errEnlaces
 
-    const pendientes = (cierres ?? []).filter(
-      (c) => !(opciones.sinCerradas && c.project_editions?.archived),
+    const pendientes = (enlaces ?? []).filter(
+      (e) => !(opciones.sinCerradas && e.project_results?.project_editions?.archived),
     )
 
     if (pendientes.length > 0) {
-      // 3. Las anuladas: una pasada por todas las facturas
-      const anuladas = anuladasPorProyecto(await todasLasPaginas<FacturaApi>(clave, "/invoices"))
+      // 3. Las anuladas: una pasada por todas las facturas, que son muchas
+      //    páginas. Al enlazar uno suelto no se hace, para no gastar el cupo:
+      //    llegan con la vuelta diaria o con «Actualizar».
+      const anuladas = opciones.soloHolded
+        ? null
+        : anuladasPorProyecto(await todasLasPaginas<FacturaApi>(clave, "/invoices"))
 
-      // 4. Un resumen por cierre, de cuatro en cuatro
+      // 4. Un resumen por proyecto enlazado, de cuatro en cuatro
       const noExisten: string[] = []
       for (let i = 0; i < pendientes.length; i += 4) {
         const tanda = pendientes.slice(i, i + 4)
         await Promise.all(
-          tanda.map(async (cierre) => {
-            const holdedId = cierre.holded_project_id!
+          tanda.map(async (enlace) => {
+            const holdedId = enlace.holded_project_id
             let resumen: ResumenApi
             try {
               resumen = await llamar<ResumenApi>(clave, `/projects/${holdedId}/summary`)
@@ -295,15 +303,16 @@ export async function actualizarEspacio(
               throw e
             }
             const { data, error } = await db
-              .from("project_results")
+              .from("holded_enlaces")
               .update({
-                holded_income: redondear(importeHolded(resumen.profitability?.sales)),
-                holded_expenses: redondear(importeHolded(resumen.profitability?.expenses?.total)),
-                holded_synced_at: new Date().toISOString(),
-                holded_cancelled: (anuladas.get(holdedId) ?? []) as unknown as Json,
+                income: redondear(importeHolded(resumen.profitability?.sales)),
+                expenses: redondear(importeHolded(resumen.profitability?.expenses?.total)),
+                synced_at: new Date().toISOString(),
+                ...(anuladas ? { cancelled: (anuladas.get(holdedId) ?? []) as unknown as Json } : {}),
               })
-              .eq("id", cierre.id)
-              .select("id")
+              .eq("workspace_id", espacioId)
+              .eq("holded_project_id", holdedId)
+              .select("holded_project_id")
             if (error) throw error
             if (data?.length) actualizados++
           }),

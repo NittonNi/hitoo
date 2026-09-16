@@ -35,6 +35,8 @@ export function mensajeError(error: unknown): string {
   }
   if (code === "42501" || code === "PGRST301") {
     if (raw.includes("autorizada")) return raw
+    // `meter_en` explica por qué no deja mover unas horas
+    if (raw.includes("bloqueadas")) return raw
     // La politica `time_entries_insert` lleva `puede_escribir(workspace_id)`:
     // con la prueba acabada o la suscripcion cancelada, apuntar una hora
     // nueva rebota aqui. Sin este caso el mensaje era "No tienes permisos",

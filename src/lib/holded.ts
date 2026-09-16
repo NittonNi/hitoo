@@ -48,12 +48,23 @@ export type Ajuste = {
   created_at: string
 }
 
+/** Un proyecto de Holded dentro de un cierre, con lo último traído. */
+export type EnlaceCierre = {
+  holdedId: string
+  resultId: string
+  income: number | null
+  expenses: number | null
+  syncedAt: string | null
+}
+
 /** Lo que la ficha de un proyecto necesita saber de Holded. */
 export type DatosHolded = {
   conectado: boolean
   proyectos: HoldedProyecto[]
   /** Proyecto de Holded -> el cierre de hitoo con el que ya está enlazado. */
   enlazados: Record<string, string>
+  /** Los enlaces de los cierres de este proyecto, cada uno con sus cifras. */
+  enlaces: EnlaceCierre[]
   ajustes: Ajuste[]
   /** Quién es quién, para firmar los ajustes. */
   nombres: Record<string, string>
@@ -94,13 +105,23 @@ function palabras(texto: string): string[] {
     .toLowerCase()
     .split(/[^a-z0-9]+/)
     .filter((p) => p.length > 1 || /\d/.test(p))
+    // «2025» y «25» son el mismo año: «FERIA 24 25» es «FERIA 2024-25»
+    .map((p) => (/^20\d\d$/.test(p) ? p.slice(2) : p))
 }
+
+/** Lo que separa una edición de otra: el año, el número, el mes o la estación. */
+const SEPARAN = new Set([
+  "enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto",
+  "septiembre", "setiembre", "octubre", "noviembre", "diciembre",
+  "primavera", "verano", "otono", "invierno",
+])
+const separa = (p: string) => /\d/.test(p) || SEPARAN.has(p)
 
 /**
  * Cuánto se parecen dos nombres, de 0 a 1: palabras en común sobre las del
  * más largo. «CHUPA CHUSES ENERO 2026» y «Chupa Chuses · Enero 2026» dan 1.
- * Un número que no coincide (2025 contra 2026) resta, porque en LEINN el año
- * es justo lo que separa una edición de otra.
+ * Un año, un número o un mes que no coincide (2025 contra 2026, enero contra
+ * febrero) resta, porque en LEINN es justo lo que separa una edición de otra.
  */
 export function parecido(a: string, b: string): number {
   const pa = new Set(palabras(a))
@@ -108,55 +129,73 @@ export function parecido(a: string, b: string): number {
   if (pa.size === 0 || pb.size === 0) return 0
   let comunes = 0
   for (const p of pa) if (pb.has(p)) comunes++
-  const numerosA = [...pa].filter((p) => /\d/.test(p))
-  const numerosB = [...pb].filter((p) => /\d/.test(p))
+  const numerosA = [...pa].filter(separa)
+  const numerosB = [...pb].filter(separa)
+  // Si los dos dicen de cuándo son, tienen que decir lo mismo
   const chocan =
     numerosA.length > 0 &&
     numerosB.length > 0 &&
-    !numerosA.some((n) => numerosB.includes(n))
+    (numerosA.some((n) => !numerosB.includes(n)) || numerosB.some((n) => !numerosA.includes(n)))
   const base = comunes / Math.max(pa.size, pb.size)
   return chocan ? base / 2 : base
 }
 
-/** Un sitio donde puede ir el dinero: una edición, o el proyecto entero. */
-export type CierrePosible = {
-  proyectoId: string
-  edicionId: string | null
+/** Dónde puede ir el dinero: una edición, o el proyecto entero con `edicionId` null. */
+export type Sitio = { proyectoId: string; edicionId: string | null }
+
+export const claveSitio = (s: Sitio) => `${s.proyectoId}|${s.edicionId ?? ""}`
+
+/** Un sitio con su nombre («Proyecto Edición», como se llamaría en Holded). */
+export type CierrePosible = Sitio & {
   nombre: string
-  /** El proyecto de Holded con el que ya está enlazado, si lo está. */
-  holdedId: string | null
+  /** Los proyectos de Holded que ya están en este sitio. */
+  holdedIds: string[]
 }
 
 export const UMBRAL_SUGERENCIA = 0.6
+/** Para juntar con otro de Holded hace falta que se llamen casi igual. */
+export const UMBRAL_HERMANO = 0.75
 
 /**
- * Para cada proyecto de Holded sin enlazar, el cierre sin enlazar que más se
- * le parece. Cada cierre se propone una sola vez: gana el que más se parece.
+ * Para cada proyecto de Holded sin sitio, a dónde se propone llevarlo:
+ * - al sitio vacío que más se le parece por nombre (cada sitio vacío se
+ *   propone una sola vez: gana el que más se parece), o
+ * - al sitio de otro proyecto de Holded que se llama casi igual y ya está
+ *   enlazado: «FERIA 25 26 (TIENDA)» va con «FERIA 25 26 EQUIPO».
+ * `hermano` dice con cuál se juntaría, para explicarlo.
  */
 export function sugerirEnlaces(
   proyectos: HoldedProyecto[],
-  cierres: CierrePosible[],
-): Map<string, CierrePosible> {
-  const enlazados = new Set(cierres.map((c) => c.holdedId).filter(Boolean))
-  const libres = cierres.filter((c) => !c.holdedId)
-  const parejas: { holdedId: string; cierre: CierrePosible; nota: number }[] = []
+  sitios: CierrePosible[],
+): Map<string, { sitio: CierrePosible; hermano: string | null }> {
+  const sitioDe = new Map<string, CierrePosible>()
+  for (const s of sitios) for (const h of s.holdedIds) sitioDe.set(h, s)
+  const nombreDe = new Map(proyectos.map((p) => [p.holded_id, p.name]))
+  const libres = sitios.filter((s) => s.holdedIds.length === 0)
+  const parejas: { holdedId: string; sitio: CierrePosible; nota: number; hermano: string | null }[] = []
 
   for (const p of proyectos) {
-    if (enlazados.has(p.holded_id)) continue
-    for (const c of libres) {
-      const nota = parecido(p.name, c.nombre)
-      if (nota >= UMBRAL_SUGERENCIA) parejas.push({ holdedId: p.holded_id, cierre: c, nota })
+    if (sitioDe.has(p.holded_id)) continue
+    for (const s of libres) {
+      const nota = parecido(p.name, s.nombre)
+      if (nota >= UMBRAL_SUGERENCIA) parejas.push({ holdedId: p.holded_id, sitio: s, nota, hermano: null })
+    }
+    for (const [otro, s] of sitioDe) {
+      const nota = parecido(p.name, nombreDe.get(otro) ?? "")
+      if (nota >= UMBRAL_HERMANO) {
+        parejas.push({ holdedId: p.holded_id, sitio: s, nota, hermano: nombreDe.get(otro) ?? null })
+      }
     }
   }
 
   parejas.sort((x, y) => y.nota - x.nota)
-  const resultado = new Map<string, CierrePosible>()
+  const resultado = new Map<string, { sitio: CierrePosible; hermano: string | null }>()
   const usados = new Set<string>()
-  for (const { holdedId, cierre } of parejas) {
-    const clave = `${cierre.proyectoId}|${cierre.edicionId ?? ""}`
-    if (resultado.has(holdedId) || usados.has(clave)) continue
-    resultado.set(holdedId, cierre)
-    usados.add(clave)
+  for (const { holdedId, sitio, hermano } of parejas) {
+    const clave = claveSitio(sitio)
+    if (resultado.has(holdedId) || (!hermano && usados.has(clave))) continue
+    resultado.set(holdedId, { sitio, hermano })
+    if (!hermano) usados.add(clave)
   }
   return resultado
 }
